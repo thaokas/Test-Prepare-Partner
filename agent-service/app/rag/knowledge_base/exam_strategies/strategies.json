@@ -1,0 +1,104 @@
+{
+  "exam_types": {
+    "考研": {
+      "subjects": ["英语", "数学", "政治", "专业课"],
+      "phases": {
+        "基础阶段": {
+          "focus": "打牢基础，理解概念",
+          "daily_ratio": {"learn": 0.6, "review": 0.4},
+          "tips": "这个阶段不要急着刷题，先把知识点理解透"
+        },
+        "强化阶段": {
+          "focus": "专项训练，突破难点",
+          "daily_ratio": {"learn": 0.3, "practice": 0.5, "review": 0.2},
+          "tips": "开始大量刷题，总结错题"
+        },
+        "冲刺阶段": {
+          "focus": "模拟考试，查漏补缺",
+          "daily_ratio": {"mock": 0.4, "practice": 0.4, "review": 0.2},
+          "tips": "保持做题手感，调整心态"
+        }
+      }
+    },
+    "期末": {
+      "subjects": ["按课程划分"],
+      "phases": {
+        "基础阶段": {
+          "focus": "通读教材，理解框架",
+          "daily_ratio": {"learn": 0.7, "review": 0.3},
+          "tips": "先看目录，建立知识框架"
+        },
+        "强化阶段": {
+          "focus": "重点突破，刷往年题",
+          "daily_ratio": {"learn": 0.3, "practice": 0.5, "review": 0.2},
+          "tips": "往年试题是重点参考"
+        },
+        "冲刺阶段": {
+          "focus": "背诵重点，模拟考试",
+          "daily_ratio": {"review": 0.6, "mock": 0.4},
+          "tips": "集中背诵，快速回顾"
+        }
+      }
+    },
+    "考证": {
+      "subjects": ["按证书要求划分"],
+      "phases": {
+        "基础阶段": {
+          "focus": "学习教材，理解原理",
+          "daily_ratio": {"learn": 0.6, "review": 0.4},
+          "tips": "跟着教材走，做好笔记"
+        },
+        "强化阶段": {
+          "focus": "刷题训练，总结规律",
+          "daily_ratio": {"practice": 0.6, "review": 0.4},
+          "tips": "真题是最好的复习资料"
+        },
+        "冲刺阶段": {
+          "focus": "模拟考试，巩固薄弱",
+          "daily_ratio": {"mock": 0.5, "practice": 0.3, "review": 0.2},
+          "tips": "掐时间做模拟，适应考试节奏"
+        }
+      }
+    },
+    "考公": {
+      "subjects": ["行测", "申论"],
+      "phases": {
+        "基础阶段": {
+          "focus": "学习各模块解题方法",
+          "daily_ratio": {"learn": 0.6, "practice": 0.4},
+          "tips": "行测要掌握每种题型的技巧"
+        },
+        "强化阶段": {
+          "focus": "分模块训练，提高速度",
+          "daily_ratio": {"practice": 0.7, "review": 0.3},
+          "tips": "速度和准确率并重"
+        },
+        "冲刺阶段": {
+          "focus": "套题训练，保持手感",
+          "daily_ratio": {"mock": 0.6, "practice": 0.4},
+          "tips": "每天一套真题，保持状态"
+        }
+      }
+    },
+    "语言": {
+      "subjects": ["听力", "阅读", "写作", "口语"],
+      "phases": {
+        "基础阶段": {
+          "focus": "积累词汇，练习基础",
+          "daily_ratio": {"learn": 0.5, "practice": 0.3, "review": 0.2},
+          "tips": "词汇是基础，每天都要背"
+        },
+        "强化阶段": {
+          "focus": "专项训练，提高技能",
+          "daily_ratio": {"practice": 0.6, "learn": 0.2, "review": 0.2},
+          "tips": "针对弱项加强训练"
+        },
+        "冲刺阶段": {
+          "focus": "模拟考试，适应节奏",
+          "daily_ratio": {"mock": 0.5, "practice": 0.3, "review": 0.2},
+          "tips": "模拟真实考试环境"
+        }
+      }
+    }
+  }
+}

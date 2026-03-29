@@ -1,0 +1,91 @@
+.create-plan-page {
+  padding: 20px;
+  background: #f5f5f5;
+}
+
+.form-section {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 15px;
+
+  .section-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: #333;
+    margin-bottom: 15px;
+    padding-left: 10px;
+    border-left: 3px solid #4A90D9;
+  }
+
+  .form-item {
+    margin-bottom: 15px;
+
+    .label {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+
+    .input {
+      width: 100%;
+      height: 44px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 0 15px;
+      font-size: 16px;
+    }
+
+    .picker-value {
+      width: 100%;
+      height: 44px;
+      background: #f5f5f5;
+      border-radius: 8px;
+      padding: 0 15px;
+      font-size: 16px;
+      display: flex;
+      align-items: center;
+      color: #333;
+    }
+  }
+}
+
+.mode-options {
+  .mode-option {
+    background: #f5f5f5;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 10px;
+
+    &.active {
+      background: rgba(74, 144, 217, 0.1);
+      border: 1px solid #4A90D9;
+
+      .mode-name {
+        color: #4A90D9;
+      }
+    }
+
+    .mode-name {
+      font-size: 16px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    .mode-desc {
+      font-size: 12px;
+      color: #666;
+      margin-top: 4px;
+    }
+  }
+}
+
+.submit-btn {
+  width: 100%;
+  height: 44px;
+  background: #4A90D9;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 16px;
+  margin-top: 20px;
+}

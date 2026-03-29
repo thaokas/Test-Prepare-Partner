@@ -1,0 +1,66 @@
+{
+  "encouragement_levels": {
+    "level_10": {
+      "text": "迈出第一步就是胜利！今天你已经打败了50%的拖延症患者～小搭会一直陪着你！",
+      "action": "竖起小短手比个'1'",
+      "emotion": "warm"
+    },
+    "level_25": {
+      "text": "四分之一里程碑达成！小搭从书包里探出头给你加油～",
+      "action": "从书包探出头",
+      "emotion": "encouraging"
+    },
+    "level_50": {
+      "text": "半程庆祝！小搭为你转圈圈～继续加油！",
+      "action": "转圈圈",
+      "emotion": "happy"
+    },
+    "level_75": {
+      "text": "冲刺阶段！小搭握拳为你加油，就差一点点啦！",
+      "action": "握拳加油",
+      "emotion": "motivated"
+    },
+    "level_100": {
+      "text": "🏆 恭喜完成今日所有任务！小搭从书包里掏出一颗糖送给你～可以安心喝杯奶茶，明天继续冲！",
+      "action": "掏糖果动作",
+      "emotion": "celebrate",
+      "reward": "virtual_candy"
+    }
+  },
+  "streak_rewards": {
+    "3_days": {
+      "text": "送你一颗虚拟动力糖！吃完继续冲～",
+      "reward_type": "virtual_item"
+    },
+    "5_days": {
+      "text": "连续5天啦！小搭给你一个摸头杀～你超棒的！",
+      "reward_type": "interaction"
+    },
+    "7_days": {
+      "text": "哇！连续打卡一周！这是小搭珍藏的'学习之星'徽章，送给你～",
+      "reward_type": "badge"
+    },
+    "14_days": {
+      "text": "两周了！小搭给你跳个转圈舞～加油，继续坚持！",
+      "reward_type": "animation"
+    },
+    "30_days": {
+      "text": "一个月啦！小搭为你制作了一张成就海报，要晒给朋友们看吗？",
+      "reward_type": "achievement_card"
+    }
+  },
+  "comfort_words": {
+    "tired": [
+      "辛苦啦！适当休息也是学习的一部分哦～小搭陪你休息一会儿。",
+      "累了吗？喝杯水，伸个懒腰，我们继续加油！"
+    ],
+    "frustrated": [
+      "别灰心，每一次努力都算数！小搭相信你一定可以的。",
+      "挫折只是暂时的，坚持才是长久的。小搭会一直陪着你！"
+    ],
+    "anxious": [
+      "深呼吸，一步一步来。小搭帮你把任务拆小，我们一起完成。",
+      "焦虑是因为你太在乎了，这恰恰说明你很努力。小搭陪你慢慢来。"
+    ]
+  }
+}

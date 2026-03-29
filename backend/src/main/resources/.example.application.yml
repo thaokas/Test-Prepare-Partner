@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: prep-keeper-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/prepkeeper
+    username:
+    password:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 300000
+      connection-timeout: 20000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    open-in-view: false
+
+server:
+  port: 8080
+
+jwt:
+  secret: 
+  expiration: 86400000  # 24小时
+  refresh-expiration: 604800000  # 7天
+
+agent:
+  service:
+    url: ${AGENT_URL:http://localhost:8000}
+    timeout: 30000
+    retry: 3
+
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
