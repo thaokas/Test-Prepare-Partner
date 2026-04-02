@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2017",
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
@@ -20,7 +20,10 @@
       "@store/*": ["src/store/*"],
       "@utils/*": ["src/utils/*"],
       "@types/*": ["src/types/*"]
-    }
+    },
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true
   },
   "include": ["src/**/*", "config/**/*"],
   "exclude": ["node_modules", "dist"]
