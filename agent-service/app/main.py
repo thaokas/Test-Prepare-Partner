@@ -10,6 +10,7 @@ import logging
 from app.config import get_settings
 from app.models.database import init_db
 from app.routers import chat, plan, checkin, report
+from app.routers import reminder
 from app.scheduler.jobs import start_scheduler, shutdown_scheduler
 
 settings = get_settings()
@@ -55,6 +56,7 @@ app.add_middleware(
 app.include_router(chat.router)
 app.include_router(plan.router)
 app.include_router(checkin.router)
+app.include_router(reminder.router)
 app.include_router(report.router)
 
 

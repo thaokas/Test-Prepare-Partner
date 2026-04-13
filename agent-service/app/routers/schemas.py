@@ -86,20 +86,20 @@ class TaskSchema(BaseModel):
 
 class PlanGenerateResponse(BaseModel):
     """计划生成响应"""
-    plan_id: str
+    plan_id: Optional[str]
     total_tasks: int
-    phases: List[Dict[str, Any]]
     message: str
+    tasks: List[Dict[str, Any]] = []
 
 
 class CheckinResponse(BaseModel):
     """打卡响应"""
-    completed_tasks: int
-    total_tasks: int
+    checkin_id: Optional[str] = None
     completion_rate: float
-    streak: int
+    matched_tasks: List[Dict[str, Any]] = []
     encouragement: str
     easter_egg: Optional[str] = None
+    streak_days: int
 
 
 class TodayTasksResponse(BaseModel):
@@ -110,14 +110,27 @@ class TodayTasksResponse(BaseModel):
     completion_rate: float
 
 
+class ReminderSettingsRequest(BaseModel):
+    """提醒设置请求"""
+    mode: int = Field(1, ge=0, le=3, description="提醒模式：0-静默 1-温柔 2-强化 3-唐僧")
+    custom_times: List[str] = []
+    monking_interval: int = Field(30, ge=5, le=120)
+
+
+class ReminderSettingsResponse(BaseModel):
+    """提醒设置响应"""
+    mode: int
+    custom_times: List[str]
+    monking_interval: int
+    is_active: bool
+
+
 class WeeklyReportResponse(BaseModel):
     """周报响应"""
+    report_id: Optional[str] = None
     user_id: str
-    week_start: date
-    week_end: date
-    daily_rates: List[Dict[str, Any]]
+    week_start: str
+    week_end: str
     average_rate: float
-    week_over_week: float
-    current_streak: int
-    best_study_time: Optional[str] = None
     summary: str
+    suggestions: List[str] = []
