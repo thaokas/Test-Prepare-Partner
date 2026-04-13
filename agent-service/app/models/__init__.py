@@ -1,13 +1,13 @@
-# models package
-from app.models.database import Base, get_db, init_db
-from app.models.user import User
-from app.models.study_plan import StudyPlan
-from app.models.task import Task
-from app.models.checkin import Checkin
-from app.models.reminder import Reminder
-from app.models.easter_egg import EasterEgg
+from .base import Base, get_db
+from .user import User
+from .plan import StudyPlan
+from .task import Task
+from .checkin import CheckinRecord
+from .reminder_setting import ReminderSetting
+from .report import WeeklyReport
 
 __all__ = [
-    "Base", "get_db", "init_db",
-    "User", "StudyPlan", "Task", "Checkin", "Reminder", "EasterEgg"
+    "Base", "get_db",
+    "User", "StudyPlan", "Task",
+    "CheckinRecord", "ReminderSetting", "WeeklyReport"
 ]

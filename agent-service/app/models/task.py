@@ -1,31 +1,24 @@
-"""
-任务模型
-"""
-from sqlalchemy import Column, String, Integer, Date, TIMESTAMP, SmallInteger, ForeignKey, Text
+from sqlalchemy import Column, String, Integer, Date, DateTime, ForeignKey, JSON, Index
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
-from app.models.database import Base
+from app.models.base import Base
 import uuid
 
 
 class Task(Base):
-    """任务表"""
     __tablename__ = "tasks"
+    __table_args__ = (Index('idx_user_date', 'user_id', 'task_date'),)
 
-    task_id = Column(String(64), primary_key=True, default=lambda: str(uuid.uuid4()))
-    plan_id = Column(String(64), ForeignKey("study_plans.plan_id"), nullable=False)
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    plan_id = Column(String, ForeignKey("study_plans.id"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False)
     task_date = Column(Date, nullable=False)
-    subject = Column(String(50), nullable=False)
-    task_content = Column(String(500), nullable=False)
-    estimated_minutes = Column(Integer, nullable=False)
-    task_type = Column(SmallInteger, default=1)  # 1-学习 2-复习 3-刷题 4-模考
-    phase = Column(SmallInteger, nullable=False)  # 1-基础 2-强化 3-冲刺
-    status = Column(SmallInteger, default=0)  # 0-未开始 1-进行中 2-已完成 3-已跳过
-    completed_at = Column(TIMESTAMP, nullable=True)
-    checkin_type = Column(SmallInteger, nullable=True)  # 1-文字 2-图片
-
-    # 关系
-    plan = relationship("StudyPlan", backref="tasks")
-
-    def __repr__(self):
-        return f"<Task(task_id={self.task_id}, subject={self.subject}, status={self.status})>"
+    subject = Column(String, nullable=False)
+    task_content = Column(String, nullable=False)
+    estimated_minutes = Column(Integer, default=60)
+    task_type = Column(Integer, default=1)   # 1-学习 2-复习 3-测试 4-其他
+    phase = Column(Integer, default=1)
+    status = Column(Integer, default=0)      # 0-待完成 1-进行中 2-已完成
+    actual_minutes = Column(Integer, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    keywords = Column(JSON, default=list)    # 用于打卡匹配
+    created_at = Column(DateTime, server_default=func.now())
