@@ -11,9 +11,13 @@ psycopg2-binary>=2.9.9
 # LangChain and LangGraph
 langchain>=0.1.0
 langchain-core>=0.1.0
-langgraph>=0.0.20
+langgraph>=0.2.0
 langchain-openai>=0.0.5
 langchain-community>=0.0.10
+
+# Document parsing
+pypdf>=4.0.0
+beautifulsoup4>=4.12.0
 
 # RAG
 chromadb>=0.4.22
