@@ -4,6 +4,17 @@ import logging
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional
 
+from langchain_core.messages import HumanMessage, AIMessage
+from app.llm import get_chat_model
+from app.agents.planner.prompts import (
+    PARSE_INPUT_PROMPT,
+    CHECK_FIELDS_PROMPT,
+    PARSE_REPLY_PROMPT,
+    GENERATE_PLAN_PROMPT,
+    RESOURCE_SUMMARY_PROMPT,
+    get_foundation_level_desc,
+)
+
 logger = logging.getLogger(__name__)
 
 # ── 常量：估算完成备考所需最少天数的基准 ──────────────────────────────
@@ -103,3 +114,60 @@ async def calculate_study_time_node(state: Dict) -> Dict:
             "estimated_completion_date": state.get("exam_date", ""),
             "error": str(e),
         }
+
+
+def _extract_json(text: str) -> Dict:
+    """从 LLM 响应文本中提取 JSON（去除 markdown 代码块）"""
+    text = text.strip()
+    if "```" in text:
+        parts = text.split("```")
+        # 取第一个代码块内容
+        text = parts[1]
+        if text.startswith("json"):
+            text = text[4:]
+    return json.loads(text.strip())
+
+
+async def parse_input_node(state: Dict) -> Dict:
+    """解析用户初始输入，提取考试信息字段（LLM 节点）"""
+    try:
+        messages = state.get("messages", [])
+        last_human = next(
+            (m.content for m in reversed(messages) if isinstance(m, HumanMessage)),
+            ""
+        )
+
+        prompt = PARSE_INPUT_PROMPT.format(
+            message=last_human,
+            resource_summary=state.get("resource_summary", "（无资料）"),
+        )
+
+        llm = get_chat_model()
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        data = _extract_json(response.content if isinstance(response.content, str) else str(response.content))
+
+        updates: Dict = {}
+        for field in ("exam_name", "exam_type", "exam_date", "daily_hours",
+                      "foundation_level", "weak_subjects", "rest_days_per_week"):
+            val = data.get(field)
+            if val is not None:
+                updates[field] = val
+
+        # 合并 URL 列表（去重）
+        existing_urls = state.get("urls", [])
+        existing_pdf = state.get("pdf_urls", [])
+        existing_img = state.get("image_urls", [])
+        new_urls = [u for u in data.get("urls", []) if u not in existing_urls]
+        new_pdf = [u for u in data.get("pdf_urls", []) if u not in existing_pdf]
+        new_img = [u for u in data.get("image_urls", []) if u not in existing_img]
+        if new_urls or existing_urls:
+            updates["urls"] = existing_urls + new_urls
+        if new_pdf or existing_pdf:
+            updates["pdf_urls"] = existing_pdf + new_pdf
+        if new_img or existing_img:
+            updates["image_urls"] = existing_img + new_img
+
+        return updates
+    except Exception as e:
+        logger.error(f"parse_input_node error: {e}")
+        return {"error": str(e)}

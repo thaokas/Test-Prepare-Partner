@@ -84,3 +84,114 @@ async def test_calculate_study_time_high_daily_hours_finishes_early():
     completion = datetime.strptime(result["estimated_completion_date"], "%Y-%m-%d").date()
     exam = datetime.strptime(exam_date_str, "%Y-%m-%d").date()
     assert completion < exam, "高强度学习应在考试日之前完成备考"
+
+
+# ── parse_input_node ──────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_parse_input_extracts_exam_info():
+    """parse_input_node 应从 LLM 响应中提取考试信息字段。"""
+    from app.agents.planner.nodes import parse_input_node
+    from langchain_core.messages import HumanMessage, AIMessage
+
+    llm_json = json.dumps({
+        "exam_name": "考研数学",
+        "exam_type": "考研",
+        "exam_date": "2026-12-26",
+        "daily_hours": 3.0,
+        "foundation_level": 1,
+        "weak_subjects": ["高等数学"],
+        "rest_days_per_week": 1,
+        "urls": [],
+        "pdf_urls": [],
+        "image_urls": [],
+    })
+
+    mock_response = MagicMock()
+    mock_response.content = llm_json
+
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    state = {
+        "user_id": "u1",
+        "messages": [HumanMessage(content="我要备考考研数学，考试在2026年12月26日，每天能学3小时")],
+        "urls": [],
+        "pdf_urls": [],
+        "image_urls": [],
+        "resource_summary": "",
+        "exam_name": None,
+        "exam_type": None,
+        "exam_date": None,
+        "daily_hours": None,
+        "foundation_level": None,
+        "weak_subjects": [],
+        "rest_days_per_week": 1,
+        "clarification_rounds": 0,
+        "clarification_question": None,
+        "exam_info": {},
+        "total_days": 0,
+        "phases": [],
+        "estimated_completion_date": "",
+        "tasks": [],
+        "plan_id": None,
+        "message": "",
+        "error": None,
+    }
+
+    with patch("app.agents.planner.nodes.get_chat_model", return_value=mock_llm):
+        result = await parse_input_node(state)
+
+    assert result["exam_name"] == "考研数学"
+    assert result["exam_type"] == "考研"
+    assert result["exam_date"] == "2026-12-26"
+    assert result["daily_hours"] == 3.0
+    assert result["foundation_level"] == 1
+    assert result["weak_subjects"] == ["高等数学"]
+
+
+@pytest.mark.asyncio
+async def test_parse_input_extracts_urls_from_message():
+    """parse_input_node 应将 LLM 返回中的 URL 列表写入 state。"""
+    from app.agents.planner.nodes import parse_input_node
+    from langchain_core.messages import HumanMessage
+
+    llm_json = json.dumps({
+        "exam_name": "雅思",
+        "exam_type": "语言",
+        "exam_date": None,
+        "daily_hours": None,
+        "foundation_level": None,
+        "weak_subjects": [],
+        "rest_days_per_week": 1,
+        "urls": ["https://example.com/ielts-guide"],
+        "pdf_urls": ["https://example.com/vocab.pdf"],
+        "image_urls": [],
+    })
+
+    mock_response = MagicMock()
+    mock_response.content = llm_json
+    mock_llm = AsyncMock()
+    mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+
+    state = {
+        "user_id": "u1",
+        "messages": [HumanMessage(content="备考雅思，参考 https://example.com/ielts-guide 和 https://example.com/vocab.pdf")],
+        "urls": [],
+        "pdf_urls": [],
+        "image_urls": [],
+        "resource_summary": "",
+        "exam_name": None, "exam_type": None, "exam_date": None,
+        "daily_hours": None, "foundation_level": None,
+        "weak_subjects": [], "rest_days_per_week": 1,
+        "clarification_rounds": 0, "clarification_question": None,
+        "exam_info": {}, "total_days": 0, "phases": [],
+        "estimated_completion_date": "", "tasks": [],
+        "plan_id": None, "message": "", "error": None,
+    }
+
+    with patch("app.agents.planner.nodes.get_chat_model", return_value=mock_llm):
+        result = await parse_input_node(state)
+
+    assert "https://example.com/ielts-guide" in result["urls"]
+    assert "https://example.com/vocab.pdf" in result["pdf_urls"]
