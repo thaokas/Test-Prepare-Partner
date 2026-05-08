@@ -1,6 +1,7 @@
 package com.prepkeeper.controller;
 
 import com.prepkeeper.dto.request.LoginRequest;
+import com.prepkeeper.dto.request.RefreshTokenRequest;
 import com.prepkeeper.dto.request.RegisterRequest;
 import com.prepkeeper.dto.response.ApiResponse;
 import com.prepkeeper.dto.response.AuthResponse;
@@ -39,7 +40,8 @@ public class AuthController {
 
     @Operation(summary = "刷新Token")
     @PostMapping("/refresh")
-    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@RequestBody String refreshToken) {
+    public ResponseEntity<ApiResponse<AuthResponse>> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        String refreshToken = request.getRefreshToken();
         AuthResponse response = authService.refreshToken(refreshToken);
         return ResponseEntity.ok(ApiResponse.success(response));
     }

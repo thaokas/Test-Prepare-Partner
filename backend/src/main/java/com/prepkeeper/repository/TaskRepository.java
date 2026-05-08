@@ -16,6 +16,8 @@ public interface TaskRepository extends JpaRepository<Task, String> {
 
     List<Task> findByPlanIdAndTaskDate(String planId, LocalDate taskDate);
 
+    List<Task> findByPlanIdAndTaskDateBetween(String planId, LocalDate startDate, LocalDate endDate);
+
     List<Task> findByPlanIdAndStatus(String planId, Integer status);
 
     /**

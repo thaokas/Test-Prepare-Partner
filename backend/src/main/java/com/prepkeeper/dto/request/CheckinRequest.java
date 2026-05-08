@@ -13,9 +13,14 @@ public class CheckinRequest {
     private String planId;
 
     /**
-     * 打卡内容
+     * 今日完成的计划内容描述（完成内容）
      */
     private String content;
+
+    /**
+     * 打卡截图/图片URL，传入则先由多模态模型总结
+     */
+    private String imageUrl;
 
     /**
      * 打卡方式: 1-文字 2-图片

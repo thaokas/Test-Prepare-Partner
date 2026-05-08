@@ -40,9 +40,8 @@ public class CheckinController {
             @RequestParam String planId,
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        // 查询今日打卡记录
-        // 暂返回空
-        return ResponseEntity.ok(ApiResponse.success(null));
+        CheckinResponse response = checkinService.getTodayCheckin(principal.getUserId(), planId);
+        return ResponseEntity.ok(ApiResponse.success(response));
     }
 
     @Operation(summary = "获取打卡历史")
@@ -68,7 +67,7 @@ public class CheckinController {
     public ResponseEntity<ApiResponse<Integer>> getStreak(
             @AuthenticationPrincipal UserPrincipal principal) {
 
-        // 通过用户信息获取
-        return ResponseEntity.ok(ApiResponse.success(0));
+        int streak = checkinService.getCurrentStreak(principal.getUserId());
+        return ResponseEntity.ok(ApiResponse.success(streak));
     }
 }

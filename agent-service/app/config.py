@@ -8,16 +8,17 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     """应用配置"""
-    # Database
-    database_url: str = "postgresql://postgres:password@localhost:5432/prepkeeper"
 
-    # LLM
-    llm_provider: str = "openai"        # openai, deepseek
+    # LLM (language model)
     llm_api_key: str = ""
     llm_base_url: str = "https://api.openai.com/v1"
-    llm_model: str = "gpt-4"
+    llm_model: str = "gpt-4o"
     llm_temperature: float = 0.7
-    llm_max_tokens: int = 4096
+
+    # Vision / multimodal model (falls back to LLM settings if not set)
+    vision_api_key: str = ""
+    vision_base_url: str = ""
+    vision_model: str = "gpt-4o"
 
     # Embedding
     embedding_model: str = "text-embedding-3-small"

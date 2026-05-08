@@ -2,33 +2,29 @@
 from langgraph.graph import StateGraph, END
 
 from app.agents.checkin.state import CheckinState
-from app.agents.checkin.nodes import (
-    parse_content_node,
-    identify_tasks_node,
-    calculate_rate_node,
-    check_streak_node,
-    check_easter_egg_node,
-    generate_encouragement_node,
-    save_checkin_node,
-)
+from app.agents.checkin.nodes import summarize_image_node, generate_encouragement_node
+
+
+def _route_by_image(state: CheckinState) -> str:
+    """有图片时先总结图片，无图片时直接生成鼓励"""
+    if state.get("image_url"):
+        return "summarize_image"
+    return "generate_encouragement"
+
 
 _builder = StateGraph(CheckinState)
 
-_builder.add_node("parse_content", parse_content_node)
-_builder.add_node("identify_tasks", identify_tasks_node)
-_builder.add_node("calculate_rate", calculate_rate_node)
-_builder.add_node("check_streak", check_streak_node)
-_builder.add_node("check_easter_egg", check_easter_egg_node)
+_builder.add_node("summarize_image", summarize_image_node)
 _builder.add_node("generate_encouragement", generate_encouragement_node)
-_builder.add_node("save_checkin", save_checkin_node)
 
-_builder.set_entry_point("parse_content")
-_builder.add_edge("parse_content", "identify_tasks")
-_builder.add_edge("identify_tasks", "calculate_rate")
-_builder.add_edge("calculate_rate", "check_streak")
-_builder.add_edge("check_streak", "check_easter_egg")
-_builder.add_edge("check_easter_egg", "generate_encouragement")
-_builder.add_edge("generate_encouragement", "save_checkin")
-_builder.add_edge("save_checkin", END)
+_builder.set_conditional_entry_point(
+    _route_by_image,
+    {
+        "summarize_image": "summarize_image",
+        "generate_encouragement": "generate_encouragement",
+    },
+)
+_builder.add_edge("summarize_image", "generate_encouragement")
+_builder.add_edge("generate_encouragement", END)
 
 checkin_graph = _builder.compile()

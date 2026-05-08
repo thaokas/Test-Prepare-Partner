@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  background-color: #f3f4f6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
+import java.util.List;
 
 @Data
 public class ReminderConfigRequest {
@@ -16,5 +17,13 @@ public class ReminderConfigRequest {
      */
     @Min(value = 0, message = "监督模式值为0-3")
     @Max(value = 3, message = "监督模式值为0-3")
-    private Integer currentMode;
+    private Integer mode;
+
+    /** 自定义提醒时间列表 ["09:00","14:00","20:00"] */
+    private List<String> customTimes;
+
+    /** 唐僧模式间隔（分钟，5-120） */
+    @Min(value = 5, message = "唐僧模式间隔最少5分钟")
+    @Max(value = 120, message = "唐僧模式间隔最多120分钟")
+    private Integer monkingInterval = 30;
 }

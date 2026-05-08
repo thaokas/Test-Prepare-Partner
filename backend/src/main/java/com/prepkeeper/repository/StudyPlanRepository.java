@@ -28,4 +28,10 @@ public interface StudyPlanRepository extends JpaRepository<StudyPlan, String> {
      */
     @Query("SELECT sp FROM StudyPlan sp WHERE sp.planStatus = 0 AND sp.currentMode > 0")
     List<StudyPlan> findAllActivePlansWithReminder();
+
+    /**
+     * 查询所有活跃计划(不限userId，用于定时任务)
+     */
+    @Query("SELECT sp FROM StudyPlan sp WHERE sp.planStatus = 0")
+    List<StudyPlan> findAllActivePlans();
 }

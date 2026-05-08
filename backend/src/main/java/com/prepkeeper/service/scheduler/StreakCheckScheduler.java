@@ -43,10 +43,11 @@ public class StreakCheckScheduler {
 
             if (!checkedYesterday && user.getCurrentStreak() > 0) {
                 // 昨日未打卡，重置连续天数
+                int previousStreak = user.getCurrentStreak();
                 user.setCurrentStreak(0);
                 userRepository.save(user);
                 resetCount++;
-                log.info("重置连续打卡: userId={}, previousStreak={}", user.getUserId(), user.getCurrentStreak());
+                log.info("重置连续打卡: userId={}, previousStreak={}", user.getUserId(), previousStreak);
             }
         }
 

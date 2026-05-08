@@ -56,9 +56,9 @@ class PlanGenerateRequest(BaseModel):
 
 class CheckinRequest(BaseModel):
     """打卡请求"""
-    user_id: str
-    content: str = Field(..., description="打卡内容")
-    checkin_type: int = Field(1, ge=1, le=2, description="打卡方式：1-文字 2-图片")
+    completed_content: str = Field(..., description="今日完成的计划内容描述")
+    overall_completion_rate: float = Field(..., ge=0, le=100, description="整体备考完成率（0-100）")
+    image_url: Optional[str] = Field(default=None, description="打卡图片URL（可选）")
 
 
 # Response schemas
@@ -94,12 +94,23 @@ class PlanGenerateResponse(BaseModel):
 
 class CheckinResponse(BaseModel):
     """打卡响应"""
-    checkin_id: Optional[str] = None
-    completion_rate: float
-    matched_tasks: List[Dict[str, Any]] = []
     encouragement: str
-    easter_egg: Optional[str] = None
-    streak_days: int
+
+
+class ReminderGenerateRequest(BaseModel):
+    """提醒生成请求"""
+    today_total_tasks: List[Dict[str, Any]] = Field(..., description="今日全部任务")
+    today_incomplete_tasks: List[Dict[str, Any]] = Field(..., description="今日未完成任务")
+    exam_total_tasks: List[Dict[str, Any]] = Field(..., description="备考全部任务")
+    exam_completed_tasks: List[Dict[str, Any]] = Field(..., description="备考已完成任务")
+    elapsed_study_days: float = Field(..., ge=0, description="已消耗备考天数")
+    total_study_days: float = Field(..., gt=0, description="备考总天数")
+    strictness_mode: str = Field("gentle", description="silent/gentle/intensive/nightmare/tangseng")
+
+
+class ReminderGenerateResponse(BaseModel):
+    """提醒生成响应"""
+    content: str
 
 
 class TodayTasksResponse(BaseModel):
@@ -125,12 +136,41 @@ class ReminderSettingsResponse(BaseModel):
     is_active: bool
 
 
+class WeeklyReportRequest(BaseModel):
+    """周报生成请求"""
+    user_id: str
+    week_start: str = Field(..., description="周一日期，YYYY-MM-DD")
+    week_end: Optional[str] = Field(default=None, description="周日日期，YYYY-MM-DD，不传则自动推算")
+    total_plan: List[Dict[str, Any]] = Field(..., description="本周计划任务列表")
+    weekly_completed: List[Dict[str, Any]] = Field(..., description="本周已完成的任务列表")
+
+
 class WeeklyReportResponse(BaseModel):
     """周报响应"""
     report_id: Optional[str] = None
     user_id: str
     week_start: str
     week_end: str
-    average_rate: float
+    total_rate: float
+    html_content: str
     summary: str
-    suggestions: List[str] = []
+
+
+class PlanChatRequest(BaseModel):
+    """多轮对话式计划生成请求"""
+    user_id: str
+    message: str
+    thread_id: Optional[str] = None
+    urls: Optional[List[str]] = None
+    pdf_urls: Optional[List[str]] = None
+    image_urls: Optional[List[str]] = None
+
+
+class PlanChatResponse(BaseModel):
+    """多轮对话式计划生成响应"""
+    thread_id: str
+    status: str  # "waiting_for_input" | "completed" | "error"
+    message: str
+    clarification_question: Optional[str] = None
+    plan_id: Optional[str] = None
+    tasks: List[Dict[str, Any]] = []

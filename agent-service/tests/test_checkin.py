@@ -1,67 +1,72 @@
-"""
-打卡工作流测试
-"""
+"""测试 Checkin Agent —— 打卡鼓励生成"""
 import pytest
-from datetime import datetime
-
-from app.graphs.checkin import checkin_graph, CheckinState
+from app.agents.checkin import checkin_graph
 
 
-def test_checkin_graph():
-    """测试打卡处理工作流"""
-    initial_state: CheckinState = {
-        "user_id": "test_user_001",
-        "content": "打卡",
-        "checkin_type": 1,  # 文字打卡
+@pytest.mark.asyncio
+class TestCheckinAgent:
+    """打卡 Agent 完整运行测试（使用真实 LLM）"""
 
-        # 解析结果
-        "parsed_tasks": [],
-        "matched_task_ids": [],
-        "completed_count": 0,
-        "total_count": 0,
+    async def test_text_only_checkin(self, sample_checkin_state):
+        """无图片打卡：输入完成内容，应返回鼓励文案"""
+        result = await checkin_graph.ainvoke(sample_checkin_state)
 
-        # 完成率
-        "completion_rate": 0.0,
+        assert result is not None
+        assert "encouragement" in result
+        assert result["encouragement"], "鼓励文案不应为空"
+        assert len(result["encouragement"]) > 0
+        assert any("一" <= c <= "鿿" for c in result["encouragement"]), \
+            "鼓励文案应包含中文"
+        print(result)
 
-        # 连续打卡
-        "current_streak": 0,
-        "streak_updated": False,
+    async def test_checkin_with_image(self, sample_checkin_state):
+        """带图片打卡：输入图片 URL，应经过图片总结再生成鼓励"""
+        state = {
+            **sample_checkin_state,
+            "image_url": "/tests/images/note1.png",
+        }
+        result = await checkin_graph.ainvoke(state)
+        print(result)
 
-        # 彩蛋
-        "easter_egg": None,
+        assert result is not None
+        assert "encouragement" in result
+        assert result["encouragement"], "鼓励文案不应为空"
 
-        # 鼓励话术
-        "encouragement": "",
+    async def test_checkin_high_rate(self):
+        """高完成率打卡：测试不同完成率下的鼓励"""
+        state = {
+            "completed_content": "今天完成了所有计划任务",
+            "overall_completion_rate": 90.0,
+            "image_url": None,
+            "encouragement": "",
+            "error": None,
+        }
+        result = await checkin_graph.ainvoke(state)
+        print(result)
+        assert result["encouragement"]
 
-        # 错误
-        "error": None
-    }
+    async def test_checkin_low_rate(self):
+        """低完成率打卡"""
+        state = {
+            "completed_content": "今天只复习了一点",
+            "overall_completion_rate": 15.0,
+            "image_url": None,
+            "encouragement": "",
+            "error": None,
+        }
+        result = await checkin_graph.ainvoke(state)
+        print(result)
+        assert result["encouragement"]
 
-    result = checkin_graph.invoke(initial_state)
-
-    # 验证工作流执行完成
-    assert "encouragement" in result
-    assert result["encouragement"] != ""
-
-
-def test_encouragement_generation():
-    """测试鼓励话术生成"""
-    from app.graphs.checkin import generate_encouragement_node
-
-    # 测试不同完成率
-    test_cases = [
-        (10.0, "第一步"),
-        (25.0, "四分之一"),
-        (50.0, "半程"),
-        (75.0, "冲刺"),
-        (100.0, "恭喜")
-    ]
-
-    for rate, expected_keyword in test_cases:
-        state = {"completion_rate": rate}
-        result = generate_encouragement_node(state)
-        assert expected_keyword in result["encouragement"] or "加油" in result["encouragement"]
-
-
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+    async def test_checkin_empty_content(self):
+        """空内容打卡：边界情况"""
+        state = {
+            "completed_content": "",
+            "overall_completion_rate": 0.0,
+            "image_url": None,
+            "encouragement": "",
+            "error": None,
+        }
+        result = await checkin_graph.ainvoke(state)
+        print(result)
+        assert "encouragement" in result

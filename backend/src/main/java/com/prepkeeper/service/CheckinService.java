@@ -98,19 +98,20 @@ public class CheckinService {
 
         // 调用Agent获取鼓励话术
         String encouragement = null;
-        EasterEggResponse easterEgg = null;
 
         try {
-            var agentResponse = agentClient.processCheckin(userId, request.getPlanId(), request.getContent(), completionRate);
+            var agentResponse = agentClient.processCheckin(
+                    request.getContent() != null ? request.getContent() : "",
+                    completionRate,
+                    request.getImageUrl());
             if (agentResponse != null) {
-                encouragement = agentResponse.getEncouragement();
-                if (agentResponse.getEasterEgg() != null) {
-                    easterEgg = agentResponse.getEasterEgg();
-                }
+                encouragement = (String) agentResponse.get("encouragement");
             }
         } catch (Exception e) {
             log.warn("Agent处理打卡失败: {}", e.getMessage());
-            // 使用默认鼓励话术
+        }
+
+        if (encouragement == null || encouragement.isEmpty()) {
             encouragement = getDefaultEncouragement(completionRate);
         }
 
@@ -123,8 +124,33 @@ public class CheckinService {
                 .completionRate(checkin.getCompletionRate())
                 .currentStreak(currentStreak)
                 .encouragement(encouragement)
-                .easterEgg(easterEgg)
+                .easterEgg(null)
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public CheckinResponse getTodayCheckin(String userId, String planId) {
+        LocalDate today = LocalDate.now();
+        Checkin checkin = checkinRepository.findByUserIdAndPlanIdAndCheckinDate(userId, planId, today)
+                .orElse(null);
+
+        if (checkin == null) {
+            return null;
+        }
+
+        return CheckinResponse.builder()
+                .checkinId(checkin.getCheckinId())
+                .planId(checkin.getPlanId())
+                .checkinDate(checkin.getCheckinDate())
+                .completedTasks(checkin.getCompletedTasks())
+                .totalTasks(checkin.getTotalTasks())
+                .completionRate(checkin.getCompletionRate())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public int getCurrentStreak(String userId) {
+        return userService.getUserById(userId).getCurrentStreak();
     }
 
     @Transactional(readOnly = true)

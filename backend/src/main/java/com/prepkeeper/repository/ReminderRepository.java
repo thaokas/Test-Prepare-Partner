@@ -14,6 +14,8 @@ public interface ReminderRepository extends JpaRepository<Reminder, String> {
 
     List<Reminder> findByUserId(String userId);
 
+    List<Reminder> findByUserIdOrderByTriggerTimeDesc(String userId);
+
     List<Reminder> findByUserIdAndIsSent(String userId, Integer isSent);
 
     /**

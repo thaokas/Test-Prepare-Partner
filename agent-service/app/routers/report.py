@@ -2,50 +2,54 @@
 周报相关API路由
 """
 from fastapi import APIRouter, HTTPException
-from typing import Optional
 from datetime import date, timedelta
 
 from app.agents.report import report_graph
-from app.routers.schemas import WeeklyReportResponse
+from app.routers.schemas import WeeklyReportRequest, WeeklyReportResponse
 
 router = APIRouter(prefix="/api/report", tags=["report"])
 
 
-@router.get("/weekly/{user_id}", response_model=WeeklyReportResponse)
-async def get_weekly_report(user_id: str, week_start: Optional[str] = None):
-    """获取周报（LLM驱动：智能分析本周学习表现）"""
-    if week_start is None:
-        today = date.today()
-        week_start = str(today - timedelta(days=today.weekday()))
-
-    week_end = str(date.fromisoformat(week_start) + timedelta(days=6))
+@router.post("/weekly", response_model=WeeklyReportResponse)
+async def generate_weekly_report(request: WeeklyReportRequest):
+    """生成周报（传入本周计划任务列表 + 已完成任务列表，LLM 生成 HTML 周报）"""
+    week_end = request.week_end or str(
+        date.fromisoformat(request.week_start) + timedelta(days=6)
+    )
 
     initial_state = {
-        "user_id": user_id,
-        "week_start": week_start,
+        "user_id": request.user_id,
+        "week_start": request.week_start,
         "week_end": week_end,
-        "daily_checkins": [],
-        "daily_rates": [],
-        "average_rate": 0.0,
-        "week_over_week": 0.0,
-        "current_streak": 0,
-        "best_study_time": None,
+        "total_plan": request.total_plan,
+        "weekly_completed": request.weekly_completed,
+        # 以下由各节点填充
+        "subject_stats": [],
+        "total_planned": 0,
+        "total_completed": 0,
+        "total_rate": 0.0,
+        "estimated_minutes_total": 0,
+        "completed_minutes": 0,
+        "streak_days": 0,
         "highlights": [],
         "issues": [],
+        "html_content": "",
         "summary": "",
-        "suggestions": [],
         "report_id": None,
         "error": None,
     }
 
     result = await report_graph.ainvoke(initial_state)
 
+    if result.get("error") and not result.get("html_content"):
+        raise HTTPException(status_code=500, detail=result["error"])
+
     return WeeklyReportResponse(
         report_id=result.get("report_id"),
-        user_id=user_id,
-        week_start=week_start,
+        user_id=request.user_id,
+        week_start=request.week_start,
         week_end=week_end,
-        average_rate=result.get("average_rate", 0.0),
-        summary=result.get("summary", "本周数据暂无"),
-        suggestions=result.get("suggestions", []),
+        total_rate=result.get("total_rate", 0.0),
+        html_content=result.get("html_content", ""),
+        summary=result.get("summary", ""),
     )

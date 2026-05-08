@@ -2,7 +2,9 @@ package com.prepkeeper.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.prepkeeper.dto.request.PlanChatRequest;
 import com.prepkeeper.dto.request.PlanCreateRequest;
+import com.prepkeeper.dto.response.PlanChatResponse;
 import com.prepkeeper.dto.response.PlanResponse;
 import com.prepkeeper.entity.StudyPlan;
 import com.prepkeeper.exception.BusinessException;
@@ -17,7 +19,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -53,12 +57,49 @@ public class PlanService {
 
         // 调用Agent生成任务
         try {
-            agentClient.generatePlan(userId, plan.getPlanId(), request);
+            agentClient.generatePlan(userId, request);
         } catch (Exception e) {
             log.warn("Agent生成任务失败，计划已创建: {}", e.getMessage());
         }
 
         return toPlanResponse(plan, 0L, 0L);
+    }
+
+    /**
+     * 对话式计划生成 — 支持多轮追问
+     */
+    public PlanChatResponse planChat(String userId, PlanChatRequest request) {
+        Map<String, Object> agentResponse = agentClient.planChat(
+                userId,
+                request.getMessage(),
+                request.getThreadId(),
+                request.getUrls(),
+                request.getPdfUrls(),
+                request.getImageUrls());
+
+        if (agentResponse == null) {
+            return PlanChatResponse.builder()
+                    .status("error")
+                    .message("Agent服务异常")
+                    .build();
+        }
+
+        return PlanChatResponse.builder()
+                .threadId((String) agentResponse.get("thread_id"))
+                .status((String) agentResponse.get("status"))
+                .message((String) agentResponse.get("message"))
+                .clarificationQuestion((String) agentResponse.get("clarification_question"))
+                .planId((String) agentResponse.get("plan_id"))
+                .tasks(parseTasks(agentResponse.get("tasks")))
+                .build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> parseTasks(Object tasksObj) {
+        if (tasksObj instanceof List) {
+            return (List<Map<String, Object>>) tasksObj;
+        }
+        return new ArrayList<>();
     }
 
     @Transactional(readOnly = true)

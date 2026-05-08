@@ -1,94 +1,105 @@
 """监督提醒Agent节点函数"""
-import json
 import logging
+from datetime import datetime
 from typing import Dict
 
+from langchain_core.messages import HumanMessage
+from langchain_core.tools import tool
+
 from app.agents.reminder.state import ReminderState
-from app.agents.reminder.prompts import (
-    REMINDER_ANALYZE_PROMPT, REMINDER_GENERATE_PROMPT, TONE_DESCRIPTIONS
-)
+from app.agents.reminder.prompts import get_reminder_prompt
 
 logger = logging.getLogger(__name__)
 
 
-async def get_incomplete_tasks_node(state: ReminderState) -> Dict:
-    """获取今日未完成任务（工具节点）"""
+@tool
+def get_current_time() -> str:
+    """获取当前的日期和时间。"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+async def get_current_time_node(state: ReminderState) -> Dict:
+    """LLM 通过工具调用获取当前时间（工具节点）。
+
+    若模式为 silent，直接短路返回空内容。
+    否则，绑定 get_current_time 工具让 LLM 发出 tool_call，
+    Python 执行工具并将时间写入 state。
+    """
+    if state.get("strictness_mode") == "silent":
+        return {"content": "", "current_time": None}
+
     try:
-        from app.tools.db_tools import get_today_tasks, get_checkin_history, get_user_streak
+        from app.llm import get_chat_model
 
-        all_tasks = await get_today_tasks.ainvoke({"user_id": state["user_id"]})
-        incomplete = [t for t in all_tasks if t.get("status", 0) != 2]
-
-        history = await get_checkin_history.ainvoke({"user_id": state["user_id"], "days": 7})
-        recent_rate = 0.0
-        if history:
-            recent_rate = sum(h.get("completion_rate", 0) for h in history) / len(history)
-
-        streak = await get_user_streak.ainvoke({"user_id": state["user_id"]})
-
-        return {
-            "incomplete_tasks": incomplete,
-            "remaining_count": len(incomplete),
-            "recent_completion_rate": round(recent_rate, 1),
-            "streak_days": streak,
-        }
-    except Exception as e:
-        logger.error(f"get_incomplete_tasks_node error: {e}")
-        return {"incomplete_tasks": [], "remaining_count": 0, "recent_completion_rate": 0.0, "streak_days": 0}
-
-
-async def analyze_user_status_node(state: ReminderState) -> Dict:
-    """使用LLM分析用户状态（LLM节点）"""
-    if state.get("mode", 1) == 0:
-        return {"strategy": "silent", "tone": "none"}
-    try:
-        from app.llm import get_llm
-        from app.models.reminder_setting import ReminderSetting
-
-        mode_names = {0: "静默", 1: "温柔", 2: "强化", 3: "唐僧"}
-        prompt = REMINDER_ANALYZE_PROMPT.format(
-            remaining_count=state.get("remaining_count", 0),
-            recent_completion_rate=state.get("recent_completion_rate", 0),
-            streak_days=state.get("streak_days", 0),
-            mode_name=mode_names.get(state.get("mode", 1), "温柔"),
+        llm = get_chat_model().bind_tools([get_current_time])
+        response = await llm.ainvoke(
+            [HumanMessage(content="请使用工具获取当前时间。")]
         )
-        llm = get_llm()
-        response = await llm.ainvoke(prompt, system_prompt="只输出JSON格式数据。")
-        text = response.strip()
-        if "```" in text:
-            text = text.split("```")[1].lstrip("json")
-        result = json.loads(text)
-        return {
-            "strategy": result.get("status", "on_track"),
-            "tone": result.get("suggested_tone", "gentle"),
-        }
+
+        # 执行 LLM 发出的 tool_call
+        if response.tool_calls:
+            result = get_current_time.invoke({})
+            return {"current_time": result}
+
+        # Fallback：LLM 未发出 tool_call，直接取时间
+        logger.warning("get_current_time_node: LLM did not emit tool_call, using fallback")
+        return {"current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
+
     except Exception as e:
-        logger.error(f"analyze_user_status_node error: {e}")
-        return {"strategy": "on_track", "tone": "gentle"}
+        logger.error(f"get_current_time_node error: {e}")
+        return {"current_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "error": str(e)}
 
 
 async def generate_reminder_node(state: ReminderState) -> Dict:
-    """使用LLM生成提醒内容（LLM节点）"""
-    if state.get("mode", 1) == 0:
-        return {"content": ""}
+    """根据严格程度模式生成提醒内容（LLM 节点）。"""
     try:
-        from app.llm import get_llm
+        from app.llm import get_chat_model
 
-        task_summary = "、".join(
-            t.get("subject", "") for t in state.get("incomplete_tasks", [])[:3]
-        ) or "未完成任务"
+        # ── 派生统计数据 ──────────────────────────────────────────────────────
+        today_total = len(state.get("today_total_tasks") or [])
+        today_incomplete = len(state.get("today_incomplete_tasks") or [])
+        today_done = today_total - today_incomplete
 
-        tone_desc = TONE_DESCRIPTIONS.get(state.get("mode", 1), "温柔体贴")
-        prompt = REMINDER_GENERATE_PROMPT.format(
-            tone_desc=tone_desc,
-            remaining_count=state.get("remaining_count", 0),
-            task_summary=task_summary,
-            status=state.get("strategy", "on_track"),
-            trigger_time=state.get("trigger_time", "21:00"),
+        exam_total = len(state.get("exam_total_tasks") or [])
+        exam_done = len(state.get("exam_completed_tasks") or [])
+        exam_rate = round(exam_done / exam_total * 100, 1) if exam_total > 0 else 0.0
+
+        elapsed_days = state.get("elapsed_study_days", 0.0)
+        total_days = state.get("total_study_days", 0.0)
+        time_rate = round(elapsed_days / total_days * 100, 1) if total_days > 0 else 0.0
+
+        # 未完成任务名称，最多展示 5 个
+        incomplete_tasks = state.get("today_incomplete_tasks") or []
+        incomplete_names = "、".join(
+            t.get("subject") or t.get("name") or t.get("title") or "未知任务"
+            for t in incomplete_tasks[:5]
+        ) or "无"
+
+        # ── 构造 Prompt ───────────────────────────────────────────────────────
+        mode = state.get("strictness_mode", "gentle")
+        prompt_template = get_reminder_prompt(mode)
+        prompt = prompt_template.format(
+            current_time=state.get("current_time") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            today_done=today_done,
+            today_total=today_total,
+            incomplete_names=incomplete_names,
+            exam_done=exam_done,
+            exam_total=exam_total,
+            exam_rate=exam_rate,
+            elapsed_days=elapsed_days,
+            total_days=total_days,
+            time_rate=time_rate,
         )
-        llm = get_llm()
-        content = await llm.ainvoke(prompt)
+
+        llm = get_chat_model()
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        content = response.content if hasattr(response, "content") else str(response)
         return {"content": content.strip()}
+
     except Exception as e:
         logger.error(f"generate_reminder_node error: {e}")
-        return {"content": f"还有{state.get('remaining_count', 0)}个任务未完成，加油！", "error": str(e)}
+        incomplete_count = len(state.get("today_incomplete_tasks") or [])
+        return {
+            "content": f"还有 {incomplete_count} 个任务未完成，加油！",
+            "error": str(e),
+        }

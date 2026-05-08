@@ -1,155 +1,79 @@
 """打卡处理Agent节点函数"""
-import json
 import logging
-from datetime import datetime
+import os
+import base64
 from typing import Dict
 
+from langchain_core.messages import HumanMessage
+
 from app.agents.checkin.state import CheckinState
-from app.agents.checkin.prompts import CHECKIN_PARSE_PROMPT, CHECKIN_ENCOURAGEMENT_PROMPT
+from app.agents.checkin.prompts import CHECKIN_ENCOURAGEMENT_PROMPT, IMAGE_SUMMARIZE_PROMPT
 
 logger = logging.getLogger(__name__)
 
 
-async def parse_content_node(state: CheckinState) -> Dict:
-    """使用LLM解析打卡内容，提取完成的任务关键词"""
+def encode_image_to_base64(filepath):
+    ext = os.path.splitext(filepath)[1].lower()
+
+    mime_map = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+    }
+
+    mime_type = mime_map.get(ext, "application/octet-stream")
+
+    # 以二进制模式读取图片文件
+    with open(os.getcwd() + filepath, "rb") as f:
+        return f"data:{mime_type};base64,{base64.b64encode(f.read()).decode('utf-8')}"
+
+
+async def summarize_image_node(state: CheckinState) -> Dict:
+    """使用多模态模型对打卡图片进行内容总结"""
     try:
-        from app.llm import get_llm
-        from app.tools.db_tools import get_today_tasks
+        image_url = state.get("image_url")
+        if not image_url:
+            return {"image_summary": None}
 
-        today_tasks = await get_today_tasks.ainvoke({"user_id": state["user_id"]})
-        tasks_text = "\n".join(
-            f"- {t.get('subject', '')}: {t.get('task_content', '')}" for t in today_tasks
-        ) or "（暂无今日任务记录）"
-
-        prompt = CHECKIN_PARSE_PROMPT.format(
-            today_tasks=tasks_text,
-            content=state["content"],
-        )
-        llm = get_llm()
-        response = await llm.ainvoke(prompt, system_prompt="你是备考督导助手，只输出JSON格式数据。")
-
-        text = response.strip()
-        if "```" in text:
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        result = json.loads(text)
-
-        return {
-            "parsed_tasks": result.get("completed_tasks", []) + result.get("partial_tasks", []),
-            "confidence": result.get("confidence", 0.8),
-        }
+        from app.llm import get_vision_model
+        llm = get_vision_model()
+        image_data = encode_image_to_base64(image_url)
+        message = HumanMessage(content=[
+            {"type": "text", "text": IMAGE_SUMMARIZE_PROMPT},
+            {"type": "image_url", "image_url": image_data},
+        ])
+        response = await llm.ainvoke([message])
+        content = response.content
+        text = content if isinstance(content, str) else str(content[0])
+        return {"image_summary": text.strip()}
     except Exception as e:
-        logger.error(f"parse_content_node error: {e}")
-        return {"parsed_tasks": [], "confidence": 0.0, "error": str(e)}
-
-
-async def identify_tasks_node(state: CheckinState) -> Dict:
-    """根据关键词匹配今日任务（工具节点）"""
-    try:
-        from app.tools.db_tools import match_tasks_by_keywords, get_today_tasks
-
-        all_tasks = await get_today_tasks.ainvoke({"user_id": state["user_id"]})
-        matched = await match_tasks_by_keywords.ainvoke({
-            "user_id": state["user_id"],
-            "keywords": state.get("parsed_tasks", []),
-        })
-        return {
-            "matched_tasks": matched,
-            "completed_count": len(matched),
-            "total_count": len(all_tasks),
-        }
-    except Exception as e:
-        logger.error(f"identify_tasks_node error: {e}")
-        return {"matched_tasks": [], "completed_count": 0, "total_count": 0}
-
-
-async def calculate_rate_node(state: CheckinState) -> Dict:
-    """计算完成率（纯计算节点）"""
-    total = state.get("total_count", 0)
-    completed = state.get("completed_count", 0)
-    rate = (completed / total * 100) if total > 0 else 0.0
-    return {"completion_rate": round(rate, 1)}
-
-
-async def check_streak_node(state: CheckinState) -> Dict:
-    """检查并更新连续打卡天数（工具节点）"""
-    try:
-        from app.tools.db_tools import get_user_streak, update_user_streak
-
-        current_streak = await get_user_streak.ainvoke({"user_id": state["user_id"]})
-        new_streak = current_streak + 1
-        await update_user_streak.ainvoke({"user_id": state["user_id"], "new_streak": new_streak})
-        return {"new_streak": new_streak, "streak_updated": True}
-    except Exception as e:
-        logger.error(f"check_streak_node error: {e}")
-        return {"new_streak": 0, "streak_updated": False}
-
-
-async def check_easter_egg_node(state: CheckinState) -> Dict:
-    """检查是否触发彩蛋条件"""
-    try:
-        from app.tools.rag_tools import get_easter_egg_message
-
-        streak = state.get("new_streak", 0)
-        hour = datetime.now().hour
-
-        egg_type = None
-        if streak == 3:
-            egg_type = "streak_3"
-        elif streak == 7:
-            egg_type = "streak_7"
-        elif 23 <= hour or hour < 5:
-            egg_type = "late_night"
-        elif 5 <= hour < 7:
-            egg_type = "early_bird"
-
-        if egg_type:
-            message = get_easter_egg_message.invoke({"egg_type": egg_type})
-            return {"easter_egg": message or None}
-        return {"easter_egg": None}
-    except Exception as e:
-        logger.error(f"check_easter_egg_node error: {e}")
-        return {"easter_egg": None}
+        logger.error(f"summarize_image_node error: {e}")
+        return {"image_summary": None, "error": str(e)}
 
 
 async def generate_encouragement_node(state: CheckinState) -> Dict:
-    """使用LLM生成个性化鼓励话术（LLM节点）"""
+    """根据打卡内容和图片摘要生成一句简短鼓励（纯文本LLM）"""
     try:
-        from app.llm import get_llm
+        image_summary = state.get("image_summary")
+        if image_summary:
+            image_section = f"打卡图片内容：{image_summary}"
+        else:
+            image_section = ""
 
         prompt = CHECKIN_ENCOURAGEMENT_PROMPT.format(
-            completion_rate=state.get("completion_rate", 0),
-            streak_days=state.get("new_streak", 0),
-            checkin_time=datetime.now().strftime("%H:%M"),
+            completed_content=state.get("completed_content", ""),
+            overall_completion_rate=state.get("overall_completion_rate", 0),
+            image_summary=image_section,
         )
-        llm = get_llm()
-        encouragement = await llm.ainvoke(prompt)
-        return {"encouragement": encouragement.strip()}
+
+        from app.llm import get_chat_model
+        llm = get_chat_model()
+        response = await llm.ainvoke([HumanMessage(content=prompt)])
+        content = response.content
+        text = content if isinstance(content, str) else str(content[0])
+        return {"encouragement": text.strip()}
     except Exception as e:
         logger.error(f"generate_encouragement_node error: {e}")
-        from app.tools.rag_tools import get_encouragement_by_rate
-        fallback = get_encouragement_by_rate.invoke({"completion_rate": state.get("completion_rate", 0)})
-        return {"encouragement": fallback}
-
-
-async def save_checkin_node(state: CheckinState) -> Dict:
-    """保存打卡记录到数据库（工具节点）"""
-    try:
-        from app.tools.db_tools import create_checkin_record, get_active_plan
-
-        plan = await get_active_plan.ainvoke({"user_id": state["user_id"]})
-        plan_id = plan.get("plan_id") if plan else ""
-
-        result = await create_checkin_record.ainvoke({
-            "user_id": state["user_id"],
-            "plan_id": plan_id or "",
-            "completed_tasks": [t.get("id", "") for t in state.get("matched_tasks", [])],
-            "total_tasks": state.get("total_count", 0),
-            "completion_rate": state.get("completion_rate", 0),
-            "content": state["content"],
-        })
-        return {"checkin_id": result.get("checkin_id")}
-    except Exception as e:
-        logger.error(f"save_checkin_node error: {e}")
-        return {"checkin_id": None, "error": str(e)}
+        return {"encouragement": "今天也很努力，继续加油！", "error": str(e)}

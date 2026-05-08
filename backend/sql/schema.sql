@@ -80,6 +80,18 @@ CREATE TABLE IF NOT EXISTS reminders (
     CONSTRAINT fk_reminders_plan FOREIGN KEY (plan_id) REFERENCES study_plans(plan_id) ON DELETE CASCADE
 );
 
+-- 提醒设置表
+CREATE TABLE IF NOT EXISTS reminder_settings (
+    user_id VARCHAR(64) PRIMARY KEY,
+    mode INTEGER DEFAULT 1,                    -- 监督模式: 0-静默 1-温柔 2-强化 3-唐僧
+    custom_times VARCHAR(500),                 -- 自定义提醒时间 JSON数组 ["09:00","14:00","20:00"]
+    monking_interval INTEGER DEFAULT 30,       -- 唐僧模式间隔(分钟) 5-120
+    is_active BOOLEAN DEFAULT true,            -- 是否启用
+    created_at TIMESTAMP,
+    updated_at TIMESTAMP,
+    CONSTRAINT fk_reminder_settings_user FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+);
+
 -- 彩蛋触发记录表
 CREATE TABLE IF NOT EXISTS easter_eggs (
     record_id VARCHAR(64) PRIMARY KEY,

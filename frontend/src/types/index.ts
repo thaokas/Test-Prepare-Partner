@@ -1,185 +1,242 @@
-// 用户相关类型
+// ==================== Auth Types ====================
 export interface User {
-  userId: string;
-  nickname: string;
-  email: string;
-  avatarUrl?: string;
-  totalCheckins: number;
-  currentStreak: number;
-  maxStreak: number;
-  createdAt: string;
+  userId: string
+  nickname: string
+  email: string
+  avatarUrl?: string
+  totalCheckins: number
+  currentStreak: number
+  maxStreak: number
+  createdAt: string
 }
 
-// 计划相关类型
-export interface StudyPlan {
-  planId: string;
-  userId: string;
-  examName: string;
-  examType: string;
-  examDate: string;
-  dailyHours: number;
-  foundationLevel: number;
-  weakSubjects?: string[];
-  currentMode: SupervisionMode;
-  planStatus: PlanStatus;
-  currentPhase: StudyPhase;
-  createdAt: string;
-  totalTasks: number;
-  completedTasks: number;
-  completionRate: number;
-}
-
-// 监督模式枚举
-export enum SupervisionMode {
-  Silent = 0,    // 静默
-  Gentle = 1,    // 温柔
-  Intensive = 2, // 强化
-  TangSeng = 3   // 唐僧
-}
-
-// 计划状态枚举
-export enum PlanStatus {
-  InProgress = 0, // 进行中
-  Completed = 1,  // 已完成
-  Paused = 2      // 已暂停
-}
-
-// 学习阶段枚举
-export enum StudyPhase {
-  Foundation = 1, // 基础阶段
-  Enhancement = 2, // 强化阶段
-  Sprint = 3      // 冲刺阶段
-}
-
-// 任务类型枚举
-export enum TaskType {
-  Study = 1,    // 学习
-  Review = 2,   // 复习
-  Practice = 3, // 刷题
-  MockExam = 4  // 模考
-}
-
-// 任务状态枚举
-export enum TaskStatus {
-  NotStarted = 0, // 未开始
-  InProgress = 1, // 进行中
-  Completed = 2,  // 已完成
-  Skipped = 3     // 已跳过
-}
-
-// 任务相关类型
-export interface Task {
-  taskId: string;
-  planId: string;
-  taskDate: string;
-  subject: string;
-  taskContent: string;
-  estimatedMinutes?: number;
-  taskType: TaskType;
-  phase: StudyPhase;
-  status: TaskStatus;
-  completedAt?: string;
-  checkinType?: number;
-}
-
-// 打卡相关类型
-export interface Checkin {
-  checkinId: string;
-  userId: string;
-  planId: string;
-  checkinDate: string;
-  completedTasks: number;
-  totalTasks: number;
-  completionRate: number;
-  isMakeup: boolean;
-  streakBroken: boolean;
-  createdAt: string;
-}
-
-// 提醒相关类型
-export interface Reminder {
-  reminderId: string;
-  userId: string;
-  planId: string;
-  reminderType: ReminderType;
-  triggerTime: string;
-  content?: string;
-  isSent: boolean;
-  sentAt?: string;
-}
-
-// 提醒类型枚举
-export enum ReminderType {
-  Daily = 1,    // 每日提醒
-  Urgent = 2,   // 催更提醒
-  Weekly = 3    // 周报提醒
-}
-
-// 彩蛋相关类型
-export interface EasterEgg {
-  recordId: string;
-  userId: string;
-  eggType: EasterEggType;
-  triggerDate: string;
-  content?: string;
-  isTriggered: boolean;
-}
-
-// 彩蛋类型枚举
-export enum EasterEggType {
-  LateNight = 'late_night',
-  Weekend = 'weekend',
-  EarlyBird = 'early_bird',
-  Random = 'random'
-}
-
-// API响应包装类型
-export interface ApiResponse<T> {
-  code: number;
-  message: string;
-  data: T;
-}
-
-// 认证响应类型
 export interface AuthResponse {
-  accessToken: string;
-  refreshToken: string;
-  expiresIn: number;
-  user: User;
-}
-
-// 请求类型
-export interface LoginRequest {
-  email: string;
-  password: string;
+  accessToken: string
+  refreshToken: string
+  tokenType: string
+  expiresIn: number
+  user: User
 }
 
 export interface RegisterRequest {
-  email: string;
-  password: string;
-  nickname?: string;
+  email: string
+  password: string
+  nickname: string
 }
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+// ==================== Plan Types ====================
+export type SupervisionMode = 0 | 1 | 2 | 3
+export type PlanStatus = 0 | 1 | 2
+export type Phase = 1 | 2 | 3
+export type FoundationLevel = 0 | 1 | 2
 
 export interface PlanCreateRequest {
-  examName: string;
-  examType: string;
-  examDate: string;
-  dailyHours: number;
-  foundationLevel: number;
-  weakSubjects?: string[];
-  currentMode: SupervisionMode;
+  examName: string
+  examType: string
+  examDate: string
+  dailyHours: number
+  foundationLevel: FoundationLevel
+  weakSubjects: string[]
+  currentMode: SupervisionMode
 }
 
+export interface PlanResponse {
+  planId: string
+  userId: string
+  examName: string
+  examType: string
+  examDate: string
+  dailyHours: number
+  foundationLevel: FoundationLevel
+  weakSubjects: string[]
+  currentMode: SupervisionMode
+  planStatus: PlanStatus
+  currentPhase: Phase
+  createdAt: string
+  totalTasks: number
+  completedTasks: number
+  completionRate: number
+}
+
+// ==================== Task Types ====================
+export type TaskType = 1 | 2 | 3 | 4
+export type TaskStatus = 0 | 1 | 2 | 3
+export type CheckinType = 1 | 2
+
+export interface TaskResponse {
+  taskId: string
+  planId: string
+  taskDate: string
+  subject: string
+  taskContent: string
+  estimatedMinutes: number
+  taskType: TaskType
+  phase: Phase
+  status: TaskStatus
+  completedAt?: string
+  checkinType?: CheckinType
+}
+
+// ==================== Checkin Types ====================
 export interface CheckinRequest {
-  planId: string;
-  checkinType: number;
-  content?: string;
-  imageUrl?: string;
+  planId: string
+  content: string
+  checkinType: CheckinType
+  taskIds?: string[]
+}
+
+export interface EasterEggResponse {
+  eggType: string
+  content: string
+}
+
+export interface CheckinResponse {
+  checkinId: string
+  planId: string
+  checkinDate: string
+  completedTasks: number
+  totalTasks: number
+  completionRate: number
+  currentStreak: number
+  encouragement: string
+  easterEgg?: EasterEggResponse
+}
+
+export interface CheckinHistoryItem {
+  checkinId: string
+  checkinDate: string
+  completedTasks: number
+  totalTasks: number
+  completionRate: number
+  isMakeup: number
+  streakBroken: number
+}
+
+// ==================== Reminder Types ====================
+export type ReminderType = 1 | 2 | 3
+
+export interface Reminder {
+  reminderId: string
+  userId: string
+  planId: string
+  reminderType: ReminderType
+  triggerTime: string
+  content: string
+  isSent: number
+  sentAt?: string
+}
+
+export interface ReminderSettingsResponse {
+  mode: number
+  customTimes: string[]
+  monkingInterval: number
+  isActive: boolean
 }
 
 export interface ReminderConfigRequest {
-  planId: string;
-  reminderEnabled: boolean;
-  reminderTime?: string;
-  reminderType?: ReminderType;
+  planId: string
+  mode: number
+  customTimes: string[]
+  monkingInterval: number
+}
+
+// ==================== Chat Types ====================
+export interface PlanChatRequest {
+  threadId?: string
+  message: string
+  planId?: string
+}
+
+export interface PlanChatResponse {
+  threadId: string
+  status: 'chatting' | 'asking' | 'generating' | 'completed'
+  message: string
+  clarificationQuestion?: string
+  planId?: string
+  tasks?: TaskResponse[]
+}
+
+// ==================== Report Types ====================
+export interface WeeklyReportRequest {
+  weekStart: string
+  weekEnd: string
+  totalPlan?: number
+  weeklyCompleted?: number
+}
+
+export interface WeeklyReportResponse {
+  weekStart?: string
+  weekEnd?: string
+  totalTasks?: number
+  completedTasks?: number
+  completionRate?: number
+  totalHours?: number
+  subjectBreakdown?: Record<string, number>
+  suggestions?: string[]
+  [key: string]: unknown
+}
+
+// ==================== API Response Wrapper ====================
+export interface ApiResponse<T> {
+  code: number
+  message: string
+  data: T
+}
+
+// ==================== UI Helper Constants ====================
+export const SUPERVISION_MODE_LABELS: Record<SupervisionMode, string> = {
+  0: '静默模式',
+  1: '温柔模式',
+  2: '强化模式',
+  3: '唐僧模式',
+}
+
+export const SUPERVISION_MODE_DESC: Record<SupervisionMode, string> = {
+  0: '不打扰，自律学习',
+  1: '每晚22:00温柔提醒',
+  2: '21:00和22:00双提醒',
+  3: '每30分钟督促，直到完成',
+}
+
+export const PLAN_STATUS_LABELS: Record<PlanStatus, string> = {
+  0: '进行中',
+  1: '已完成',
+  2: '已暂停',
+}
+
+export const TASK_TYPE_LABELS: Record<TaskType, string> = {
+  1: '学习',
+  2: '复习',
+  3: '刷题',
+  4: '模考',
+}
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  0: '未开始',
+  1: '进行中',
+  2: '已完成',
+  3: '已跳过',
+}
+
+export const PHASE_LABELS: Record<Phase, string> = {
+  1: '基础阶段',
+  2: '强化阶段',
+  3: '冲刺阶段',
+}
+
+export const FOUNDATION_LABELS: Record<FoundationLevel, string> = {
+  0: '零基础',
+  1: '有一定基础',
+  2: '基础较好',
+}
+
+export const REMINDER_TYPE_LABELS: Record<ReminderType, string> = {
+  1: '每日提醒',
+  2: '督促提醒',
+  3: '每周报告',
 }
