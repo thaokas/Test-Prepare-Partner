@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.prepkeeper.dto.request.PlanChatRequest;
 import com.prepkeeper.dto.request.PlanCreateRequest;
+import com.prepkeeper.dto.request.PlanWithTasksRequest;
 import com.prepkeeper.dto.response.PlanChatResponse;
 import com.prepkeeper.dto.response.PlanResponse;
 import com.prepkeeper.entity.StudyPlan;
+import com.prepkeeper.entity.Task;
 import com.prepkeeper.exception.BusinessException;
 import com.prepkeeper.exception.ErrorCode;
 import com.prepkeeper.repository.StudyPlanRepository;
@@ -17,6 +19,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -65,6 +68,49 @@ public class PlanService {
         return toPlanResponse(plan, 0L, 0L);
     }
 
+    @Transactional
+    public PlanResponse createPlanWithTasks(String userId, PlanWithTasksRequest request) {
+        LocalDate examDate = LocalDate.parse(request.getExamDate());
+
+        StudyPlan plan = new StudyPlan();
+        plan.setPlanId(IdGenerator.generatePlanId());
+        plan.setUserId(userId);
+        plan.setExamName(request.getExamName());
+        plan.setExamType(request.getExamType());
+        plan.setExamDate(examDate);
+        plan.setDailyHours(request.getDailyHours() != null
+                ? BigDecimal.valueOf(request.getDailyHours()) : BigDecimal.valueOf(2));
+        plan.setFoundationLevel(request.getFoundationLevel() != null
+                ? request.getFoundationLevel() : 1);
+        plan.setWeakSubjects(toJsonString(request.getWeakSubjects()));
+        plan.setCurrentMode(request.getCurrentMode() != null ? request.getCurrentMode() : 0);
+        plan.setCurrentPhase(calculatePhase(examDate));
+        plan.setPlanStatus(0);
+
+        plan = planRepository.save(plan);
+
+        List<Task> tasks = new ArrayList<>();
+        for (Map<String, Object> taskData : request.getTasks()) {
+            Task task = new Task();
+            task.setTaskId(IdGenerator.generateTaskId());
+            task.setPlanId(plan.getPlanId());
+            task.setTaskDate(LocalDate.parse((String) taskData.get("taskDate")));
+            task.setSubject((String) taskData.getOrDefault("subject", ""));
+            task.setTaskContent((String) taskData.getOrDefault("taskContent", ""));
+            task.setEstimatedMinutes(taskData.get("estimatedMinutes") instanceof Number
+                    ? ((Number) taskData.get("estimatedMinutes")).intValue() : 60);
+            task.setTaskType(taskData.get("taskType") instanceof Number
+                    ? ((Number) taskData.get("taskType")).intValue() : 1);
+            task.setPhase(taskData.get("phase") instanceof Number
+                    ? ((Number) taskData.get("phase")).intValue() : 1);
+            task.setStatus(0);
+            tasks.add(task);
+        }
+        taskRepository.saveAll(tasks);
+
+        return toPlanResponse(plan, (long) tasks.size(), 0L);
+    }
+
     /**
      * 对话式计划生成 — 支持多轮追问
      */
@@ -107,6 +153,11 @@ public class PlanService {
         StudyPlan plan = planRepository.findByPlanIdAndUserId(planId, userId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
 
+        // 软删除的计划不应该被访问
+        if (plan.getPlanStatus() == 2) {
+            throw new BusinessException(ErrorCode.PLAN_NOT_FOUND);
+        }
+
         long totalTasks = taskRepository.countByPlanId(planId);
         long completedTasks = taskRepository.countCompletedByPlanId(planId);
 
@@ -115,7 +166,7 @@ public class PlanService {
 
     @Transactional(readOnly = true)
     public List<PlanResponse> getUserPlans(String userId) {
-        List<StudyPlan> plans = planRepository.findByUserId(userId);
+        List<StudyPlan> plans = planRepository.findByUserIdExcludeDeleted(userId);
         return plans.stream()
                 .map(plan -> {
                     long total = taskRepository.countByPlanId(plan.getPlanId());
@@ -141,11 +192,10 @@ public class PlanService {
 
     @Transactional
     public void deletePlan(String planId, String userId) {
-        StudyPlan plan = planRepository.findByPlanIdAndUserId(planId, userId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.PLAN_NOT_FOUND));
-
-        plan.setPlanStatus(2); // 标记为暂停
-        planRepository.save(plan);
+        int updated = planRepository.softDeleteByPlanIdAndUserId(planId, userId);
+        if (updated == 0) {
+            throw new BusinessException(ErrorCode.PLAN_NOT_FOUND);
+        }
     }
 
     private int calculatePhase(LocalDate examDate) {
@@ -195,12 +245,12 @@ public class PlanService {
 
     private List<String> parseJsonToList(String json) {
         if (json == null || json.isEmpty()) {
-            return null;
+            return new ArrayList<>();
         }
         try {
             return objectMapper.readValue(json, List.class);
         } catch (JsonProcessingException e) {
-            return null;
+            return new ArrayList<>();
         }
     }
 }

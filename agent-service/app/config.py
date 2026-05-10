@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
+        extra = "ignore"  # 忽略未定义的字段（如 LANGSMITH_*）
 
 
 @lru_cache()

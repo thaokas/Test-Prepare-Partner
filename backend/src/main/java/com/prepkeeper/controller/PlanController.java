@@ -2,6 +2,7 @@ package com.prepkeeper.controller;
 
 import com.prepkeeper.dto.request.PlanChatRequest;
 import com.prepkeeper.dto.request.PlanCreateRequest;
+import com.prepkeeper.dto.request.PlanWithTasksRequest;
 import com.prepkeeper.dto.response.ApiResponse;
 import com.prepkeeper.dto.response.PlanChatResponse;
 import com.prepkeeper.dto.response.PlanResponse;
@@ -67,6 +68,16 @@ public class PlanController {
         }
 
         List<PlanResponse> response = planService.getUserPlans(userId);
+        return ResponseEntity.ok(ApiResponse.success(response));
+    }
+
+    @Operation(summary = "创建计划并附带任务列表")
+    @PostMapping("/with-tasks")
+    public ResponseEntity<ApiResponse<PlanResponse>> createPlanWithTasks(
+            @Valid @RequestBody PlanWithTasksRequest request,
+            @AuthenticationPrincipal UserPrincipal principal) {
+
+        PlanResponse response = planService.createPlanWithTasks(principal.getUserId(), request);
         return ResponseEntity.ok(ApiResponse.success(response));
     }
 

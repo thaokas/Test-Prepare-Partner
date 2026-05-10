@@ -1,7 +1,8 @@
 """测试配置 & 共享 fixtures"""
 import pytest
 from datetime import date, timedelta
-from langchain_core.messages import HumanMessage
+
+from app.agents.planner.state import ExamProfile, PlannerState
 
 
 @pytest.fixture
@@ -18,33 +19,22 @@ def sample_checkin_state():
 
 @pytest.fixture
 def sample_planner_state():
-    """计划生成测试的初始 state（信息齐全，不触发追问）"""
+    """计划生成测试的初始 state（信息齐全）"""
     exam_date = (date.today() + timedelta(days=90)).strftime("%Y-%m-%d")
-    return {
-        "user_id": "test-user-001",
-        "messages": [HumanMessage(content="我要备考考研数学一，零基础")],
-        "urls": [],
-        "pdf_urls": [],
-        "image_urls": [],
-        "resource_summary": "",
-        "exam_name": "考研数学一",
-        "exam_type": "考研",
-        "exam_date": exam_date,
-        "daily_hours": 3.0,
-        "foundation_level": 0,
-        "weak_subjects": ["线性代数"],
-        "rest_days_per_week": 1,
-        "clarification_rounds": 6,  # 跳过追问
-        "clarification_question": None,
-        "exam_info": {},
-        "total_days": 0,
-        "phases": [],
-        "estimated_completion_date": "",
-        "tasks": [],
-        "plan_id": None,
-        "message": "",
-        "error": None,
-    }
+    return PlannerState(
+        user_id="test-user-001",
+        profile=ExamProfile(
+            exam_name="考研数学一",
+            exam_type="考研",
+            exam_date=exam_date,
+            daily_hours=3.0,
+            foundation_level=0,
+            weak_subjects=["线性代数"],
+            rest_days_per_week=1,
+        ),
+        messages=[],
+        conversation_rounds=0,
+    )
 
 
 @pytest.fixture

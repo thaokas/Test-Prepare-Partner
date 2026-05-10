@@ -25,8 +25,13 @@ export default function Plans() {
 
   const handleDelete = async (planId: string) => {
     if (!confirm('确定要删除这个计划吗？')) return
-    await planApi.deletePlan(planId)
-    setPlans((prev) => prev.filter((p) => p.planId !== planId))
+    try {
+      await planApi.deletePlan(planId)
+      setPlans((prev) => prev.filter((p) => p.planId !== planId))
+    } catch (e) {
+      console.error('删除计划失败:', e)
+      alert('删除失败，请稍后重试')
+    }
   }
 
   if (loading) return <Loading />

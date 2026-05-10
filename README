@@ -1,9 +1,120 @@
-### 项目结构
+# 小搭 PrepKeeper
 
-项目分成三个部分：agent服务，后端服务，前端
+智能备考督导助手，基于 AI 多轮对话生成个性化备考计划，提供每日提醒、打卡鼓励、周报分析等陪伴式学习体验。
 
-agent服务和后端交互，后端向agent发送必要数据和请求，agent返回内容，后端处理后通过前端呈现
+## 项目结构
 
-agent不直接和数据库交互，和数据库的交互由后端完成，后端负责设置定时任务，用户管理，数据库处理等
+```
+prepKeeper/
+├── agent-service/     # AI Agent 服务 (Python / FastAPI + LangGraph)
+├── backend/           # 后端服务 (Java / Spring Boot)
+├── frontend/          # 前端 (React + TypeScript + Vite)
+└── logs/              # 日志文件
+```
 
-前端呈现内容
+### 三者关系
+
+```
+前端 (React) ──HTTP──▶ 后端 (Spring Boot) ──HTTP──▶ Agent 服务 (FastAPI + LangGraph)
+     ▲                       │
+     └────── JSON ───────────┘
+                             │
+                        PostgreSQL
+```
+
+- **Agent 服务** 提供 AI 驱动的核心智能：多轮对话生成备考计划、打卡鼓励、个性化提醒、周报生成。Agent 不直接访问数据库。
+- **后端** 负责用户认证（JWT）、业务数据管理、定时任务调度，并将需要 AI 能力的请求代理转发给 Agent 服务。
+- **前端** 为用户提供 Web 交互界面，涵盖登录注册、计划管理、任务打卡、学习统计等功能。
+
+## 功能模块
+
+| 模块 | 说明 |
+|------|------|
+| 用户认证 | 注册、登录、JWT Token 管理 |
+| 备考计划 | 多轮对话式生成个性化备考计划，支持追问补全信息 |
+| 任务管理 | 每日学习任务查看与状态跟踪 |
+| 打卡鼓励 | 提交学习内容后，AI 生成个性化鼓励文案 |
+| 智能提醒 | 根据严格度模式（静默/温柔/强化/唐僧）生成催促提醒 |
+| 周报分析 | 按周汇总完成情况，生成 HTML 周报含数据分析与建议 |
+| 定时任务 | 每日提醒、每周周报、连续打卡天数检查 |
+
+## 技术栈
+
+### Agent 服务
+
+| 技术 | 用途 |
+|------|------|
+| Python 3.12+ | 运行环境 |
+| FastAPI + Uvicorn | HTTP 服务框架 |
+| LangGraph | Agent 工作流编排 |
+| LangChain | LLM 调用与工具链 |
+| ChromaDB + sentence-transformers | RAG 向量检索 |
+| APScheduler | 定时任务 |
+
+### 后端
+
+| 技术 | 用途 |
+|------|------|
+| Java 17 + Spring Boot 3.2 | 应用框架 |
+| Spring Security + JWT | 认证授权 |
+| Spring Data JPA + Hibernate | ORM |
+| PostgreSQL | 数据库 |
+| SpringDoc OpenAPI | API 文档 (Swagger) |
+| Spring Scheduler | 定时任务 |
+
+### 前端
+
+| 技术 | 用途 |
+|------|------|
+| React 18 + TypeScript | UI 框架 |
+| Vite | 构建工具 |
+| TailwindCSS 3 | 样式 |
+| Zustand | 状态管理 |
+| React Router v6 | 路由 |
+| Axios | HTTP 请求 |
+
+## 快速开始
+
+### 前置条件
+
+- Python 3.12+
+- Java 17+ & Maven
+- Node.js 18+
+- PostgreSQL
+
+### 1. Agent 服务
+
+```bash
+cd agent-service
+cp .env.example .env   # 编辑 .env 填入 LLM API Key 等配置
+pip install uv && uv sync
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+API 文档：启动后访问 `http://127.0.0.1:8000/docs`
+
+### 2. 后端服务
+
+```bash
+cd backend
+# 编辑 src/main/resources/application.yml 配置数据库和 Agent 服务地址
+mvn spring-boot:run
+```
+
+服务运行在 `http://localhost:8080`，Swagger 文档位于 `/swagger-ui.html`
+
+### 3. 前端
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+开发服务器运行在 `http://localhost:5173`
+
+## 项目说明
+
+- **Agent 不直接与数据库交互**——数据库的读写均由后端通过 JPA 完成，Agent 专注于 LLM 推理与知识检索。
+- **前后端通过 HTTP 通信**——前端的所有请求先到达后端，需要 AI 能力时后端再转发给 Agent 服务，前端不直接调用 Agent。
+- **定时任务由后端调度**——每日提醒、周报生成、连续打卡检查等周期性任务均在后端通过 Spring Scheduler 触发。

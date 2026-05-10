@@ -137,16 +137,16 @@ class ReminderSettingsResponse(BaseModel):
 
 
 class WeeklyReportRequest(BaseModel):
-    """周报生成请求"""
+    """学习报告生成请求（支持任意日期范围，不限于自然周）"""
     user_id: str
-    week_start: str = Field(..., description="周一日期，YYYY-MM-DD")
-    week_end: Optional[str] = Field(default=None, description="周日日期，YYYY-MM-DD，不传则自动推算")
-    total_plan: List[Dict[str, Any]] = Field(..., description="本周计划任务列表")
-    weekly_completed: List[Dict[str, Any]] = Field(..., description="本周已完成的任务列表")
+    week_start: str = Field(..., description="起始日期，YYYY-MM-DD")
+    week_end: Optional[str] = Field(default=None, description="结束日期，YYYY-MM-DD，不传则自动推算为起始+6天")
+    total_plan: List[Dict[str, Any]] = Field(..., description="期间计划任务列表")
+    weekly_completed: List[Dict[str, Any]] = Field(..., description="期间已完成的任务列表")
 
 
 class WeeklyReportResponse(BaseModel):
-    """周报响应"""
+    """学习报告响应"""
     report_id: Optional[str] = None
     user_id: str
     week_start: str
@@ -154,23 +154,78 @@ class WeeklyReportResponse(BaseModel):
     total_rate: float
     html_content: str
     summary: str
+    total_planned: int = 0
+    total_completed: int = 0
+    completed_hours: float = 0.0
+    streak_days: int = 0
+    subject_stats: List[Dict[str, Any]] = []
+    suggestions: List[str] = []
+    report_title: str = ""
+    grade: str = ""
+    daily_breakdown: List[Dict[str, Any]] = []
+
+
+class ProfileSummary(BaseModel):
+    """已收集的备考信息摘要"""
+    exam_name: Optional[str] = None
+    exam_type: Optional[str] = None
+    exam_date: Optional[str] = None
+    daily_hours: Optional[float] = None
+    foundation_level: Optional[int] = None
+    weak_subjects: List[str] = []
+    rest_days_per_week: int = 1
+    missing_fields: List[str] = []
+    is_ready: bool = False
 
 
 class PlanChatRequest(BaseModel):
-    """多轮对话式计划生成请求"""
-    user_id: str
+    """多轮对话式计划生成请求（无状态 — 前端持有所有对话状态）"""
+    user_id: str = "anonymous"
     message: str
-    thread_id: Optional[str] = None
-    urls: Optional[List[str]] = None
-    pdf_urls: Optional[List[str]] = None
-    image_urls: Optional[List[str]] = None
+    profile: Optional[ProfileSummary] = None
+    search_results: List[str] = []
+    messages: List[Dict[str, str]] = []
 
 
 class PlanChatResponse(BaseModel):
-    """多轮对话式计划生成响应"""
-    thread_id: str
+    """多轮对话式计划生成响应（无状态）"""
     status: str  # "waiting_for_input" | "completed" | "error"
+    action: str = ""  # "search" | "ask_user" | "generate_plan"
     message: str
-    clarification_question: Optional[str] = None
+    profile: Optional[ProfileSummary] = None
+    search_results: List[str] = []
+    messages: List[Dict[str, str]] = []
     plan_id: Optional[str] = None
     tasks: List[Dict[str, Any]] = []
+
+
+# ── LLM Proxy & Search schemas ──
+
+class LlmChatRequest(BaseModel):
+    """LLM代理请求"""
+    messages: List[Dict[str, str]] = []
+    system_prompt: str = ""
+
+
+class LlmChatResponse(BaseModel):
+    """LLM代理响应"""
+    content: str
+    error: Optional[str] = None
+
+
+class SearchRequest(BaseModel):
+    """搜索请求"""
+    query: str
+
+
+class SearchResult(BaseModel):
+    """单条搜索结果"""
+    title: str = ""
+    snippet: str = ""
+    url: str = ""
+
+
+class SearchResponse(BaseModel):
+    """搜索响应"""
+    results: List[SearchResult] = []
+    error: Optional[str] = None

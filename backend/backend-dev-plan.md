@@ -1,4 +1,4 @@
-# ECNU备考搭子 - Spring Boot后端开发计划
+# 小搭 - Spring Boot后端开发计划
 
 ## 1. 架构定位
 

@@ -17,8 +17,8 @@ public class OpenApiConfig {
     public OpenAPI openAPI() {
         return new OpenAPI()
                 .info(new Info()
-                        .title("ECNU备考搭子 API")
-                        .description("ECNU备考搭子后端服务API文档")
+                        .title("小搭 API")
+                        .description("小搭后端服务API文档")
                         .version("v1.0.0")
                         .contact(new Contact()
                                 .name("PrepKeeper Team")

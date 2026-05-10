@@ -1,4 +1,4 @@
-# ECNU备考搭子 Agent服务 API 文档
+# 小搭 Agent服务 API 文档
 
 **版本**: 0.1.0 | **Base URL**: `http://127.0.0.1:8000`
 
@@ -368,7 +368,7 @@
 
 ```json
 {
-  "name": "ECNU备考搭子 Agent服务",
+  "name": "小搭 Agent服务",
   "version": "0.1.0",
   "status": "running"
 }

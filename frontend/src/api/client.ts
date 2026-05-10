@@ -4,7 +4,7 @@ const BASE_URL = '/api'
 
 const client = axios.create({
   baseURL: BASE_URL,
-  timeout: 15000,
+  timeout: 180000,
 })
 
 // Request interceptor — attach access token

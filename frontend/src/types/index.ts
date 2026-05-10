@@ -146,18 +146,42 @@ export interface ReminderConfigRequest {
 }
 
 // ==================== Chat Types ====================
+
+export interface ChatMessageItem {
+  role: 'user' | 'assistant'
+  content: string
+}
+
 export interface PlanChatRequest {
-  threadId?: string
+  user_id?: string
   message: string
-  planId?: string
+  profile: ProfileSummary | null
+  search_results: string[]
+  messages: ChatMessageItem[]
+}
+
+export type PlanChatStatus = 'waiting_for_input' | 'completed' | 'error'
+
+export interface ProfileSummary {
+  exam_name?: string
+  exam_type?: string
+  exam_date?: string
+  daily_hours?: number
+  foundation_level?: number
+  weak_subjects: string[]
+  rest_days_per_week: number
+  missing_fields: string[]
+  is_ready: boolean
 }
 
 export interface PlanChatResponse {
-  threadId: string
-  status: 'chatting' | 'asking' | 'generating' | 'completed'
+  status: PlanChatStatus
+  action: string  // "search" | "ask_user" | "generate_plan"
   message: string
-  clarificationQuestion?: string
-  planId?: string
+  profile: ProfileSummary
+  search_results: string[]
+  messages: ChatMessageItem[]
+  plan_id?: string
   tasks?: TaskResponse[]
 }
 
@@ -165,19 +189,42 @@ export interface PlanChatResponse {
 export interface WeeklyReportRequest {
   weekStart: string
   weekEnd: string
-  totalPlan?: number
-  weeklyCompleted?: number
+}
+
+export interface SubjectStat {
+  subject: string
+  planned: number
+  completed: number
+  rate: number
+  planned_minutes: number
+  completed_minutes: number
+}
+
+export interface DailyBreakdown {
+  date: string
+  planned_count: number
+  completed_count: number
+  planned_minutes: number
+  completed_minutes: number
+  rate: number
 }
 
 export interface WeeklyReportResponse {
   weekStart?: string
   weekEnd?: string
+  reportTitle?: string
+  grade?: string
   totalTasks?: number
   completedTasks?: number
   completionRate?: number
   totalHours?: number
+  streakDays?: number
   subjectBreakdown?: Record<string, number>
+  subjectStats?: SubjectStat[]
+  dailyBreakdown?: DailyBreakdown[]
   suggestions?: string[]
+  summary?: string
+  htmlContent?: string
   [key: string]: unknown
 }
 

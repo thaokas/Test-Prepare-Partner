@@ -153,7 +153,7 @@ export default function Profile() {
         </button>
       </div>
 
-      <p className="text-center text-xs text-gray-300">备考搭子 · PrepKeeper</p>
+      <p className="text-center text-xs text-gray-300">小搭 · PrepKeeper</p>
     </div>
   )
 }

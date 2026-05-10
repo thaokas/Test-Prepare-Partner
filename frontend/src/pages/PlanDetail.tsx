@@ -21,18 +21,44 @@ export default function PlanDetail() {
   const [plan, setPlan] = useState<PlanResponse | null>(null)
   const [tasks, setTasks] = useState<TaskResponse[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'tasks'>('overview')
   const [showModeModal, setShowModeModal] = useState(false)
 
   useEffect(() => {
     if (!planId) return
-    Promise.all([
-      planApi.getById(planId),
-      taskApi.getByPlan(planId),
-    ]).then(([planRes, tasksRes]) => {
-      setPlan(planRes.data.data)
-      setTasks(tasksRes.data.data)
-    }).finally(() => setLoading(false))
+    setLoading(true)
+    setError(null)
+    setPlan(null)
+    setTasks([])
+
+    let planDone = false
+    let tasksDone = false
+
+    planApi.getById(planId)
+      .then((res) => {
+        setPlan(res.data.data)
+      })
+      .catch((e) => {
+        console.error('加载计划失败:', e)
+        setError('计划加载失败，请返回重试')
+      })
+      .finally(() => {
+        planDone = true
+        if (tasksDone) setLoading(false)
+      })
+
+    taskApi.getByPlan(planId)
+      .then((res) => {
+        setTasks(res.data.data)
+      })
+      .catch((e) => {
+        console.error('加载任务失败:', e)
+      })
+      .finally(() => {
+        tasksDone = true
+        if (planDone) setLoading(false)
+      })
   }, [planId])
 
   const handleSwitchMode = async (mode: SupervisionMode) => {
@@ -53,7 +79,28 @@ export default function PlanDetail() {
   }
 
   if (loading) return <Loading />
-  if (!plan) return <div className="text-center py-16 text-gray-400">计划不存在</div>
+  if (error) return (
+    <div className="text-center py-16">
+      <p className="text-red-400 mb-4">{error}</p>
+      <button
+        onClick={() => navigate('/plans')}
+        className="text-blue-500 text-sm border border-blue-200 px-4 py-2 rounded-lg hover:bg-blue-50"
+      >
+        返回计划列表
+      </button>
+    </div>
+  )
+  if (!plan) return (
+    <div className="text-center py-16">
+      <p className="text-gray-400 mb-4">计划不存在</p>
+      <button
+        onClick={() => navigate('/plans')}
+        className="text-blue-500 text-sm border border-blue-200 px-4 py-2 rounded-lg hover:bg-blue-50"
+      >
+        返回计划列表
+      </button>
+    </div>
+  )
 
   const daysLeft = dayjs(plan.examDate).diff(dayjs(), 'day')
   const tasksByDate = tasks.reduce<Record<string, TaskResponse[]>>((acc, task) => {
@@ -116,7 +163,7 @@ export default function PlanDetail() {
           <InfoCard label="当前阶段" value={PHASE_LABELS[plan.currentPhase]} />
           <InfoCard
             label="薄弱科目"
-            value={plan.weakSubjects.length > 0 ? plan.weakSubjects.join('、') : '暂未设置'}
+            value={plan.weakSubjects?.length ? plan.weakSubjects.join('、') : '暂未设置'}
           />
           <div className="bg-white rounded-2xl p-4 shadow-sm">
             <div className="flex items-center justify-between">
@@ -134,9 +181,15 @@ export default function PlanDetail() {
             </div>
           </div>
           <button
-            onClick={() => {
+            onClick={async () => {
               if (confirm('确定要删除这个计划吗？')) {
-                planApi.deletePlan(plan.planId).then(() => navigate('/plans'))
+                try {
+                  await planApi.deletePlan(plan.planId)
+                  navigate('/plans')
+                } catch (e) {
+                  console.error('删除计划失败:', e)
+                  alert('删除失败，请稍后重试')
+                }
               }
             }}
             className="w-full border border-red-200 text-red-400 py-2.5 rounded-xl text-sm hover:bg-red-50 transition"

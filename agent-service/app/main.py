@@ -1,6 +1,6 @@
 """
 FastAPI应用入口
-ECNU备考搭子 - Agent服务
+小搭 - Agent服务
 """
 import os
 import logging
@@ -30,6 +30,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# 初始化 LangSmith 调用链追踪
+if os.getenv("LANGSMITH_TRACING") in ("true", "True", "1"):
+    import langsmith
+    os.environ.setdefault("LANGSMITH_TRACING_V2", "true")
+    logger.info(
+        "LangSmith tracing 已启用 | Project: %s | Endpoint: %s",
+        os.getenv("LANGSMITH_PROJECT", "default"),
+        os.getenv("LANGSMITH_ENDPOINT", "https://api.smith.langchain.com"),
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,7 +51,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="ECNU备考搭子 - Agent服务",
+    title="小搭 - Agent服务",
     description="基于LangChain/LangGraph的智能备考督导Agent",
     version="0.1.0",
     lifespan=lifespan
@@ -67,7 +77,7 @@ app.include_router(report.router)
 async def root():
     """根路径"""
     return {
-        "name": "ECNU备考搭子 Agent服务",
+        "name": "小搭 Agent服务",
         "version": "0.1.0",
         "status": "running"
     }

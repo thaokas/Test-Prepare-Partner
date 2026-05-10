@@ -53,4 +53,10 @@ public interface TaskRepository extends JpaRepository<Task, String> {
     @Modifying
     @Query("UPDATE Task t SET t.status = :status, t.completedAt = CURRENT_TIMESTAMP WHERE t.taskId IN :taskIds")
     int updateStatusByIds(@Param("taskIds") List<String> taskIds, @Param("status") Integer status);
+
+    /**
+     * 查询用户在指定日期范围内的所有任务（跨计划）
+     */
+    @Query("SELECT t FROM Task t JOIN StudyPlan p ON t.planId = p.planId WHERE p.userId = :userId AND t.taskDate BETWEEN :start AND :end ORDER BY t.taskDate")
+    List<Task> findByUserIdAndTaskDateBetween(@Param("userId") String userId, @Param("start") LocalDate start, @Param("end") LocalDate end);
 }

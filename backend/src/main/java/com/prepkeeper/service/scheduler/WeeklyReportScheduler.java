@@ -18,7 +18,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 周报生成定时任务
+ * 周报自动生成定时任务（每周日22:00自动为所有活跃计划生成学习报告）
  */
 @Slf4j
 @Component

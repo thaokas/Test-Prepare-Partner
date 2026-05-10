@@ -24,12 +24,15 @@ export default function Register() {
     setLoading(true)
     try {
       const res = await authApi.register(form)
+      if (res.data.code !== 0) {
+        setError(res.data.message || '注册失败')
+        return
+      }
       const { user, accessToken, refreshToken } = res.data.data
       setAuth(user, accessToken, refreshToken)
       navigate('/')
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || '注册失败，请稍后重试')
+    } catch {
+      setError('网络连接失败，请确保后端服务已启动')
     } finally {
       setLoading(false)
     }
@@ -39,7 +42,7 @@ export default function Register() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <div className="text-4xl mb-2">📚</div>
+          <img src="/logo.jpg" alt="小搭" className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover" />
           <h1 className="text-2xl font-bold text-gray-800">创建账号</h1>
           <p className="text-gray-500 text-sm mt-1">开始你的备考之旅</p>
         </div>

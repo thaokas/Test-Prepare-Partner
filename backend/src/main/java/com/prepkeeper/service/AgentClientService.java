@@ -216,6 +216,53 @@ public class AgentClientService {
     }
 
     /**
+     * LLM代理 — POST /api/plan/llm/chat
+     */
+    public Map<String, Object> llmChat(List<Map<String, String>> messages, String systemPrompt) {
+        String url = agentUrl + "/api/plan/llm/chat";
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("messages", messages != null ? messages : List.of());
+        requestBody.put("system_prompt", systemPrompt != null ? systemPrompt : "");
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
+            return response;
+        } catch (Exception e) {
+            log.error("LLM代理调用失败: {}", e.getMessage());
+            throw new RuntimeException("Agent服务异常: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 网络搜索代理 — POST /api/plan/search
+     */
+    public Map<String, Object> search(String query) {
+        String url = agentUrl + "/api/plan/search";
+
+        Map<String, Object> requestBody = new HashMap<>();
+        requestBody.put("query", query);
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            HttpEntity<Map<String, Object>> entity = new HttpEntity<>(requestBody, headers);
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> response = restTemplate.postForObject(url, entity, Map.class);
+            return response;
+        } catch (Exception e) {
+            log.error("搜索代理调用失败: {}", e.getMessage());
+            return Map.of("results", List.of(), "error", e.getMessage());
+        }
+    }
+
+    /**
      * strictness_mode映射: 后端整数模式 → Agent字符串模式
      */
     public static String modeToStrictness(int mode) {

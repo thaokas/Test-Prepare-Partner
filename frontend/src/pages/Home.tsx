@@ -16,7 +16,10 @@ export default function Home() {
   const [streak, setStreak] = useState(0)
   const [loading, setLoading] = useState(true)
 
-  const activePlan = plans.find((p) => p.planStatus === 0)
+  const sortedPlans = [...plans].sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+  )
+  const activePlan = sortedPlans.find((p) => p.planStatus === 0)
 
   useEffect(() => {
     const init = async () => {
@@ -36,7 +39,10 @@ export default function Home() {
         setPlans(fetchedPlans)
         setStreak(streakRes.data.data)
 
-        const running = fetchedPlans.find((p) => p.planStatus === 0)
+        const newest = [...fetchedPlans].sort(
+          (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        )
+        const running = newest.find((p) => p.planStatus === 0)
         if (running) {
           const tasksRes = await taskApi.getToday(running.planId)
           setTodayTasks(tasksRes.data.data)
@@ -125,41 +131,58 @@ export default function Home() {
       )}
 
       {/* Today's tasks */}
-      {todayTasks.length > 0 && (
+      {activePlan && (
         <div className="bg-white rounded-2xl p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-gray-800">今日任务</h3>
-            <span className="text-sm text-gray-400">{completedToday}/{todayTasks.length}</span>
+            {todayTasks.length > 0 && (
+              <span className="text-sm text-gray-400">{completedToday}/{todayTasks.length}</span>
+            )}
           </div>
-          <div className="space-y-2">
-            {todayTasks.slice(0, 4).map((task) => (
-              <div
-                key={task.taskId}
-                className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
-              >
-                <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                  task.status === 2 ? 'bg-green-400' :
-                  task.status === 1 ? 'bg-yellow-400' : 'bg-gray-300'
-                }`} />
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium truncate ${task.status === 2 ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                    {task.subject}
-                  </p>
-                  <p className="text-xs text-gray-400 truncate">{task.taskContent}</p>
-                </div>
-                <span className="text-xs text-gray-400 flex-shrink-0">
-                  {TASK_TYPE_LABELS[task.taskType]}
-                </span>
+          {todayTasks.length > 0 ? (
+            <>
+              <div className="space-y-2">
+                {todayTasks.slice(0, 4).map((task) => (
+                  <div
+                    key={task.taskId}
+                    className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
+                  >
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      task.status === 2 ? 'bg-green-400' :
+                      task.status === 1 ? 'bg-yellow-400' : 'bg-gray-300'
+                    }`} />
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium truncate ${task.status === 2 ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                        {task.subject}
+                      </p>
+                      <p className="text-xs text-gray-400 truncate">{task.taskContent}</p>
+                    </div>
+                    <span className="text-xs text-gray-400 flex-shrink-0">
+                      {TASK_TYPE_LABELS[task.taskType]}
+                    </span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          {todayTasks.length > 4 && (
-            <button
-              onClick={() => navigate('/tasks')}
-              className="w-full text-center text-sm text-blue-500 mt-3 hover:text-blue-600"
-            >
-              查看全部 {todayTasks.length} 个任务 →
-            </button>
+              {todayTasks.length > 4 && (
+                <button
+                  onClick={() => navigate('/tasks')}
+                  className="w-full text-center text-sm text-blue-500 mt-3 hover:text-blue-600"
+                >
+                  查看全部 {todayTasks.length} 个任务 →
+                </button>
+              )}
+            </>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-4">
+              今天暂无学习任务，先去
+              <button
+                onClick={() => navigate('/plans/create')}
+                className="text-blue-500 hover:text-blue-600 mx-1"
+              >
+                创建备考计划
+              </button>
+              吧~
+            </p>
           )}
         </div>
       )}
@@ -173,7 +196,7 @@ export default function Home() {
         </Link>
         <Link to="/chat" className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-1 hover:shadow-md transition">
           <span className="text-2xl">🤖</span>
-          <p className="font-medium text-gray-800 text-sm">AI助手</p>
+          <p className="font-medium text-gray-800 text-sm">小搭</p>
           <p className="text-xs text-gray-400">随时提问</p>
         </Link>
         <Link to="/report" className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-1 hover:shadow-md transition">

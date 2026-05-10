@@ -18,4 +18,22 @@ export const planApi = {
 
   deletePlan: (planId: string) =>
     client.delete<ApiResponse<void>>(`/plans/${planId}`),
+
+  createWithTasks: (data: {
+    examName: string
+    examType: string
+    examDate: string
+    dailyHours: number
+    foundationLevel: number
+    weakSubjects: string[]
+    currentMode: number
+    tasks: Array<{
+      taskDate: string
+      subject: string
+      taskContent: string
+      estimatedMinutes: number
+      taskType: number
+      phase: number
+    }>
+  }) => client.post<ApiResponse<PlanResponse>>('/plans/with-tasks', data),
 }

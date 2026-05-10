@@ -2,20 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { agentApi, planApi } from '@/api'
 import { useAuthStore } from '@/store/authStore'
-import type { PlanResponse, PlanChatResponse } from '@/types'
+import type { ChatMessageItem, PlanResponse, PlanChatResponse, ProfileSummary } from '@/types'
 import dayjs from 'dayjs'
 
 interface ChatMessage {
   id: number
   role: 'user' | 'assistant' | 'system'
   content: string
-  clarificationQuestion?: string
   generatedPlanId?: string
   generatedPlanName?: string
   time: string
 }
 
-type FlowStatus = 'idle' | 'chatting' | 'asking' | 'generating' | 'completed'
+type FlowStatus = 'idle' | 'conversing' | 'completed'
 
 let msgIdCounter = 1
 
@@ -24,13 +23,14 @@ export default function Chat() {
   const user = useAuthStore((s) => s.user)
   const [plans, setPlans] = useState<PlanResponse[]>([])
   const [selectedPlanId, setSelectedPlanId] = useState<string | undefined>()
-  const [threadId, setThreadId] = useState<string | null>(null)
+  const [profile, setProfile] = useState<ProfileSummary | null>(null)
+  const [searchResults, setSearchResults] = useState<string[]>([])
   const [flowStatus, setFlowStatus] = useState<FlowStatus>('idle')
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: msgIdCounter++,
       role: 'assistant',
-      content: '你好！我是你的备考AI助手 🤖\n你可以直接问我备考相关问题，也可以让我帮你定制专属备考计划。告诉我你想备考什么考试吧~',
+      content: '你好！我是小搭 🤖\n你可以直接问我备考相关问题，也可以让我帮你定制专属备考计划。告诉我你想备考什么考试吧~',
       time: dayjs().format('HH:mm'),
     },
   ])
@@ -64,19 +64,29 @@ export default function Chat() {
     ])
   }
 
+  const buildApiMessages = (msgs: ChatMessage[]): ChatMessageItem[] =>
+    msgs
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content }))
+
   const handleResponse = (res: PlanChatResponse) => {
-    setThreadId(res.threadId)
-    setFlowStatus(res.status)
+    if (res.profile) setProfile(res.profile)
+    if (res.search_results) setSearchResults(res.search_results)
+
+    if (res.status === 'completed') {
+      setFlowStatus('completed')
+    } else if (res.status === 'waiting_for_input') {
+      setFlowStatus('conversing')
+    }
 
     addAssistantMessage(res.message, {
-      clarificationQuestion: res.clarificationQuestion,
-      generatedPlanId: res.planId,
+      generatedPlanId: res.plan_id,
     })
 
-    if (res.status === 'completed' && res.planId && res.tasks) {
+    if (res.status === 'completed' && res.plan_id && res.tasks) {
       const planName = res.tasks.length > 0 ? `已生成 ${res.tasks.length} 个任务` : '计划已生成'
       addAssistantMessage('🎉 你的专属备考计划已经生成完毕！点击下方按钮查看计划详情。', {
-        generatedPlanId: res.planId,
+        generatedPlanId: res.plan_id,
         generatedPlanName: planName,
       })
     }
@@ -100,10 +110,13 @@ export default function Chat() {
     setLoading(true)
 
     try {
+      // Include all conversation rounds (including current message) in messages array
+      const allMessages = [...buildApiMessages(messages), { role: 'user' as const, content: text }]
       const res = await agentApi.planChat({
         message: text,
-        threadId: threadId ?? undefined,
-        planId: selectedPlanId,
+        profile,
+        search_results: searchResults,
+        messages: allMessages,
       })
       handleResponse(res.data.data)
     } catch {
@@ -121,9 +134,7 @@ export default function Chat() {
   }
 
   const flowSteps = [
-    { key: 'chatting', label: '对话中' },
-    { key: 'asking', label: '追问' },
-    { key: 'generating', label: '生成中' },
+    { key: 'conversing', label: '对话中' },
     { key: 'completed', label: '完成' },
   ]
   const currentStepIdx = flowSteps.findIndex((s) => s.key === flowStatus)
@@ -145,6 +156,45 @@ export default function Chat() {
               </span>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Profile status bar — shows collected info during multi-turn conversation */}
+      {profile && flowStatus !== 'completed' && (
+        <div className="flex-shrink-0 mb-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-blue-500 font-medium">已收集：</span>
+            {profile.exam_name && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                {profile.exam_name}{profile.exam_type ? `（${profile.exam_type}）` : ''}
+              </span>
+            )}
+            {profile.exam_date && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                考试：{profile.exam_date}
+              </span>
+            )}
+            {profile.daily_hours != null && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                每天{profile.daily_hours}h
+              </span>
+            )}
+            {profile.foundation_level != null && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                基础：{['零基础', '有一定基础', '基础较好'][profile.foundation_level] ?? '未知'}
+              </span>
+            )}
+            {profile.weak_subjects.length > 0 && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                薄弱：{profile.weak_subjects.join('、')}
+              </span>
+            )}
+            {profile.missing_fields.length > 0 && (
+              <span className="text-xs text-amber-500 ml-1">
+                还需：{profile.missing_fields.join('、')}
+              </span>
+            )}
+          </div>
         </div>
       )}
 
@@ -187,41 +237,6 @@ export default function Chat() {
               </div>
             </div>
 
-            {/* Clarification question card */}
-            {msg.clarificationQuestion && (
-              <div className="flex justify-start mt-2">
-                <div className="max-w-[85%] bg-blue-50 border-2 border-blue-300 rounded-2xl p-4">
-                  <p className="text-sm text-blue-700 font-medium mb-2">
-                    💡 {msg.clarificationQuestion}
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      placeholder="输入你的回答..."
-                      id={`clarify-${msg.id}`}
-                      className="flex-1 px-3 py-2 border border-blue-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          const val = (e.target as HTMLInputElement).value.trim()
-                          if (val) handleSend(val)
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        const el = document.getElementById(`clarify-${msg.id}`) as HTMLInputElement
-                        const val = el?.value?.trim()
-                        if (val) handleSend(val)
-                      }}
-                      className="bg-blue-500 text-white px-4 py-2 rounded-xl text-sm hover:bg-blue-600 transition flex-shrink-0"
-                    >
-                      发送
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Generated plan card */}
             {msg.generatedPlanId && flowStatus === 'completed' && (
               <div className="flex justify-start mt-2">
@@ -247,20 +262,8 @@ export default function Chat() {
           </div>
         ))}
 
-        {/* Generating indicator */}
-        {flowStatus === 'generating' && loading && (
-          <div className="flex justify-start">
-            <div className="bg-white text-gray-400 text-sm px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm">
-              <p className="mb-2">AI 正在分析你的需求，生成个性化备考计划...</p>
-              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                <div className="bg-blue-500 h-full rounded-full animate-pulse w-3/4" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Typing indicator for non-generating states */}
-        {loading && flowStatus !== 'generating' && (
+        {/* Thinking indicator */}
+        {loading && (
           <div className="flex justify-start">
             <div className="bg-white text-gray-400 text-sm px-4 py-3 rounded-2xl rounded-bl-sm shadow-sm">
               <span className="inline-flex gap-1">

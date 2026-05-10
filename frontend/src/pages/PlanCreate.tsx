@@ -1,272 +1,571 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { planApi } from '@/api'
-import type { PlanCreateRequest, SupervisionMode, FoundationLevel } from '@/types'
-import { SUPERVISION_MODE_LABELS, SUPERVISION_MODE_DESC, FOUNDATION_LABELS } from '@/types'
+import ReactMarkdown from 'react-markdown'
+import { agentApi, planApi } from '@/api'
+import type { FoundationLevel } from '@/types'
+import { processAgentTurn, confirmAndGenerate, toggleSearchResult } from '@/agents/planGenerator'
+import { createInitialState, GREETING_MESSAGE } from '@/agents/types'
+import type { AgentState, SearchResultItem } from '@/agents/types'
 import dayjs from 'dayjs'
 
-const EXAM_TYPES = ['考研', '四六级', '考公', '注会', '司法', '雅思', '托福', '其他']
-const COMMON_SUBJECTS = ['数学', '英语', '政治', '专业课', '语文', '物理', '化学', '生物', '历史', '地理']
+interface ChatMessage {
+  id: number
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  time: string
+  planId?: string
+  planName?: string
+}
+
+let msgIdCounter = 1
 
 export default function PlanCreate() {
   const navigate = useNavigate()
-  const [step, setStep] = useState(1)
+  const [agentState, setAgentState] = useState<AgentState>(createInitialState())
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: msgIdCounter++,
+      role: 'assistant',
+      content: GREETING_MESSAGE,
+      time: dayjs().format('HH:mm'),
+    },
+  ])
+  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [planGenerated, setPlanGenerated] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
-  const [form, setForm] = useState<PlanCreateRequest>({
-    examName: '',
-    examType: '',
-    examDate: '',
-    dailyHours: 4,
-    foundationLevel: 1,
-    weakSubjects: [],
-    currentMode: 1,
-  })
+  const showSearchCard =
+    agentState.searchResults.length > 0 &&
+    agentState.stage !== 'complete' &&
+    !planGenerated
 
-  const handleSubjectToggle = (subject: string) => {
-    setForm((prev) => ({
+  const showConfirmCard =
+    agentState.stage === 'confirm' && !planGenerated
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
+  const addMessage = (msg: Omit<ChatMessage, 'id' | 'time'>) => {
+    setMessages((prev) => [
       ...prev,
-      weakSubjects: prev.weakSubjects.includes(subject)
-        ? prev.weakSubjects.filter((s) => s !== subject)
-        : [...prev.weakSubjects, subject],
-    }))
+      { ...msg, id: msgIdCounter++, time: dayjs().format('HH:mm') },
+    ])
   }
 
-  const handleSubmit = async () => {
-    setError('')
-    if (!form.examName.trim()) { setError('请填写考试名称'); return }
-    if (!form.examType) { setError('请选择考试类型'); return }
-    if (!form.examDate) { setError('请选择考试日期'); return }
-    if (dayjs(form.examDate).isBefore(dayjs())) { setError('考试日期必须在今天之后'); return }
-
-    setLoading(true)
+  const persistPlan = async (state: AgentState): Promise<AgentState> => {
+    const profile = state.profile
+    const tasks = state.tasks!
     try {
-      const res = await planApi.create(form)
-      navigate(`/plans/${res.data.data.planId}`)
-    } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || '创建失败，请稍后重试')
+      const planRes = await planApi.createWithTasks({
+        examName: profile.exam_name!,
+        examType: profile.exam_type!,
+        examDate: profile.exam_date!,
+        dailyHours: profile.daily_hours || 2,
+        foundationLevel: (profile.foundation_level ?? 1) as FoundationLevel,
+        weakSubjects: profile.weak_subjects,
+        currentMode: 0,
+        tasks,
+      })
+      const plan = planRes.data.data
+      return { ...state, planId: plan.planId }
+    } catch {
+      throw new Error('plan_save_failed')
+    }
+  }
+
+  const handleSend = async (text?: string) => {
+    const msg = (text ?? input.trim())
+    if (!msg || loading || planGenerated) return
+
+    addMessage({ role: 'user', content: msg })
+    if (!text) setInput('')
+    setLoading(true)
+
+    try {
+      const result = await processAgentTurn(
+        msg,
+        agentState,
+        async (msgs, sysPrompt) => {
+          const res = await agentApi.llmChat({ messages: msgs, system_prompt: sysPrompt })
+          return res.data.data.content || ''
+        },
+        async (query) => {
+          const res = await agentApi.search({ query })
+          const results = res.data.data.results || []
+          return results.map((r) => `[${r.title}] ${r.snippet} (${r.url})`)
+        },
+      )
+
+      let newState = result.updatedState
+
+      // If plan was generated (stage complete with tasks), persist to backend
+      if (newState.stage === 'complete' && newState.tasks && newState.tasks.length > 0) {
+        const taskCount = newState.tasks.length
+        try {
+          newState = await persistPlan(newState)
+          setAgentState(newState)
+          setPlanGenerated(true)
+          addMessage({
+            role: 'assistant',
+            content: result.assistantMessage,
+            planId: newState.planId,
+            planName: `已生成 ${taskCount} 个学习任务`,
+          })
+        } catch {
+          addMessage({
+            role: 'assistant',
+            content: result.assistantMessage + '\n\n⚠️ 计划保存失败，请稍后重试。',
+          })
+          setAgentState(newState)
+        }
+      } else {
+        setAgentState(newState)
+        addMessage({ role: 'assistant', content: result.assistantMessage })
+      }
+    } catch (err) {
+      console.error('Agent调用失败:', err)
+      addMessage({
+        role: 'assistant',
+        content: '抱歉，我暂时无法响应，请稍后再试。',
+      })
     } finally {
       setLoading(false)
     }
   }
 
+  const handleConfirmGenerate = async () => {
+    setGenerating(true)
+    try {
+      const result = await confirmAndGenerate(
+        agentState,
+        async (msgs, sysPrompt) => {
+          const res = await agentApi.llmChat({ messages: msgs, system_prompt: sysPrompt })
+          return res.data.data.content || ''
+        },
+      )
+
+      let newState = result.updatedState
+      addMessage({ role: 'assistant', content: result.assistantMessage })
+
+      if (newState.tasks && newState.tasks.length > 0) {
+        try {
+          newState = await persistPlan(newState)
+          setAgentState(newState)
+          setPlanGenerated(true)
+          navigate(`/plans/${newState.planId}`, { replace: true })
+        } catch {
+          addMessage({
+            role: 'assistant',
+            content: '⚠️ 计划保存失败，请稍后重试。',
+          })
+          setAgentState(newState)
+        }
+      }
+    } catch (err) {
+      console.error('生成计划失败:', err)
+      addMessage({
+        role: 'assistant',
+        content: '抱歉，计划生成失败，请稍后再试。',
+      })
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  const handleToggleResult = (index: number) => {
+    setAgentState((prev) => toggleSearchResult(prev, index))
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSend()
+    }
+  }
+
+  const handleRestart = () => {
+    setAgentState(createInitialState())
+    setMessages([
+      {
+        id: msgIdCounter++,
+        role: 'assistant',
+        content: '好的，让我们重新开始！请告诉我你想备考什么考试~',
+        time: dayjs().format('HH:mm'),
+      },
+    ])
+    setPlanGenerated(false)
+  }
+
+  const profile = agentState.profile
+
   return (
-    <div className="pb-4">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="flex gap-1.5">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={`h-1.5 rounded-full transition-all ${
-                s <= step ? 'w-8 bg-blue-500' : 'w-4 bg-gray-200'
-              }`}
-            />
-          ))}
-        </div>
-        <span className="text-xs text-gray-400">步骤 {step}/3</span>
+    <div className="flex flex-col h-[calc(100vh-8rem)]">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-shrink-0 mb-2">
+        <h1 className="text-lg font-bold text-gray-800">创建备考计划</h1>
+        {messages.length > 1 && (
+          <button
+            onClick={handleRestart}
+            className="text-xs text-gray-400 hover:text-gray-600 transition"
+          >
+            重新开始
+          </button>
+        )}
       </div>
 
-      {step === 1 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-800">基本信息</h2>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">考试名称</label>
-            <input
-              type="text"
-              value={form.examName}
-              onChange={(e) => setForm({ ...form, examName: e.target.value })}
-              placeholder="例如：2025年考研数学"
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
+      {/* Profile status bar */}
+      {profile.exam_name && !planGenerated && (
+        <div className="flex-shrink-0 mb-2 px-3 py-2 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-blue-500 font-medium">已收集：</span>
+            {profile.exam_name && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                {profile.exam_name}{profile.exam_type ? `（${profile.exam_type}）` : ''}
+              </span>
+            )}
+            {profile.exam_date && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                考试：{profile.exam_date}
+              </span>
+            )}
+            {profile.daily_hours != null && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                每天{profile.daily_hours}h
+              </span>
+            )}
+            {profile.foundation_level != null && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                基础：{['零基础', '有一定基础', '基础较好'][profile.foundation_level] ?? '未知'}
+              </span>
+            )}
+            {profile.weak_subjects.length > 0 && (
+              <span className="text-xs bg-white text-blue-700 px-2 py-0.5 rounded-full border border-blue-200">
+                薄弱：{profile.weak_subjects.join('、')}
+              </span>
+            )}
+            {profile.missing_fields.length > 0 && (
+              <span className="text-xs text-amber-500 ml-1">
+                还需：{profile.missing_fields.join('、')}
+              </span>
+            )}
           </div>
+        </div>
+      )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">考试类型</label>
-            <div className="flex flex-wrap gap-2">
-              {EXAM_TYPES.map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setForm({ ...form, examType: type })}
-                  className={`px-3 py-1.5 rounded-xl text-sm border transition ${
-                    form.examType === type
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto space-y-3 py-2">
+        {messages.map((msg) => (
+          <div key={msg.id}>
+            <div
+              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[82%] ${
+                  msg.role === 'user' ? 'items-end' : 'items-start'
+                } flex flex-col gap-1`}
+              >
+                {msg.role === 'assistant' && (
+                  <span className="text-xs text-gray-400 px-1">🤖 小搭</span>
+                )}
+                <div
+                  className={`px-4 py-3 rounded-2xl text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-blue-500 text-white rounded-br-sm'
+                      : 'bg-white text-gray-700 shadow-sm border border-gray-100 rounded-bl-sm'
                   }`}
                 >
-                  {type}
-                </button>
-              ))}
+                  {msg.role === 'assistant' ? (
+                    <div className="prose prose-sm max-w-none prose-headings:text-gray-800 prose-p:text-gray-700 prose-li:text-gray-700 prose-strong:text-gray-800 prose-a:text-blue-500">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <span className="whitespace-pre-wrap">{msg.content}</span>
+                  )}
+                </div>
+                <span className="text-xs text-gray-300 px-1">{msg.time}</span>
+              </div>
+            </div>
+
+            {/* Plan generated card */}
+            {msg.planId && planGenerated && (
+              <div className="flex justify-start mt-2">
+                <div className="bg-green-50 border border-green-300 rounded-2xl p-4 max-w-[85%] w-full">
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="text-3xl">📋</span>
+                    <div>
+                      <p className="font-semibold text-green-800">
+                        {msg.planName ?? '备考计划'}
+                      </p>
+                      <p className="text-xs text-green-600">AI 已为你量身定制</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate(`/plans/${msg.planId}`)}
+                    className="w-full bg-green-500 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-green-600 transition active:scale-[0.98]"
+                  >
+                    查看计划详情 →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+
+        {/* Loading indicator */}
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-gray-100 shadow-sm text-gray-400 text-sm px-4 py-3 rounded-2xl rounded-bl-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-xs">AI 正在思考</span>
+                <span className="inline-flex gap-1">
+                  <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce" />
+                  <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:0.15s]" />
+                  <span className="w-1.5 h-1.5 bg-gray-300 rounded-full animate-bounce [animation-delay:0.3s]" />
+                </span>
+              </div>
             </div>
           </div>
+        )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">考试日期</label>
-            <input
-              type="date"
-              value={form.examDate}
-              min={dayjs().add(1, 'day').format('YYYY-MM-DD')}
-              onChange={(e) => setForm({ ...form, examDate: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
-            />
-          </div>
+        {/* Search results card */}
+        {showSearchCard && (
+          <SearchResultsCard
+            results={agentState.searchResults}
+            onToggle={handleToggleResult}
+          />
+        )}
 
+        {/* Confirmation card */}
+        {showConfirmCard && (
+          <ConfirmCard
+            profile={profile}
+            onConfirm={handleConfirmGenerate}
+            loading={generating}
+          />
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input area */}
+      {!planGenerated && (
+        <div className="flex-shrink-0 flex gap-2 pt-3 border-t border-gray-100">
+          <textarea
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="输入你的备考需求..."
+            rows={1}
+            disabled={loading}
+            className="flex-1 px-4 py-3 border border-gray-200 rounded-2xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 transition disabled:bg-gray-50"
+          />
           <button
-            onClick={() => {
-              if (!form.examName.trim() || !form.examType || !form.examDate) {
-                setError('请填写所有必填项')
-                return
-              }
-              setError('')
-              setStep(2)
-            }}
-            className="w-full bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 transition"
+            onClick={() => handleSend()}
+            disabled={loading || !input.trim()}
+            className="w-12 h-12 bg-blue-500 disabled:bg-blue-300 text-white rounded-2xl flex items-center justify-center hover:bg-blue-600 transition flex-shrink-0 active:scale-95"
           >
-            下一步
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+              />
+            </svg>
           </button>
         </div>
       )}
 
-      {step === 2 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-800">学习规划</h2>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              每日学习时长：<span className="text-blue-500">{form.dailyHours}小时</span>
-            </label>
-            <input
-              type="range"
-              min={0.5}
-              max={12}
-              step={0.5}
-              value={form.dailyHours}
-              onChange={(e) => setForm({ ...form, dailyHours: Number(e.target.value) })}
-              className="w-full accent-blue-500"
-            />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>0.5h</span><span>12h</span>
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">基础水平</label>
-            <div className="grid grid-cols-3 gap-2">
-              {([0, 1, 2] as FoundationLevel[]).map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setForm({ ...form, foundationLevel: level })}
-                  className={`py-3 rounded-xl text-sm border transition ${
-                    form.foundationLevel === level
-                      ? 'bg-blue-500 text-white border-blue-500'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
-                  }`}
-                >
-                  {FOUNDATION_LABELS[level]}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              薄弱科目（可多选）
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {COMMON_SUBJECTS.map((subject) => (
-                <button
-                  key={subject}
-                  onClick={() => handleSubjectToggle(subject)}
-                  className={`px-3 py-1.5 rounded-xl text-sm border transition ${
-                    form.weakSubjects.includes(subject)
-                      ? 'bg-orange-400 text-white border-orange-400'
-                      : 'bg-white text-gray-600 border-gray-200 hover:border-orange-300'
-                  }`}
-                >
-                  {subject}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setStep(1)}
-              className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl font-medium hover:bg-gray-50 transition"
-            >
-              上一步
-            </button>
-            <button
-              onClick={() => setStep(3)}
-              className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-medium hover:bg-blue-600 transition"
-            >
-              下一步
-            </button>
-          </div>
+      {/* Restart button when plan is done */}
+      {planGenerated && (
+        <div className="flex-shrink-0 pt-3 border-t border-gray-100">
+          <button
+            onClick={handleRestart}
+            className="w-full border-2 border-dashed border-gray-300 text-gray-400 py-3 rounded-2xl text-sm hover:border-blue-300 hover:text-blue-400 transition"
+          >
+            + 创建新的备考计划
+          </button>
         </div>
       )}
+    </div>
+  )
+}
 
-      {step === 3 && (
-        <div className="space-y-4">
-          <h2 className="text-xl font-bold text-gray-800">督促模式</h2>
-          <p className="text-sm text-gray-500">选择你想要的督促方式，之后可以随时修改</p>
+/** Search results card with relevance toggles */
+function SearchResultsCard({
+  results,
+  onToggle,
+}: {
+  results: SearchResultItem[]
+  onToggle: (index: number) => void
+}) {
+  const [collapsed, setCollapsed] = useState(false)
 
-          <div className="space-y-3">
-            {([0, 1, 2, 3] as SupervisionMode[]).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setForm({ ...form, currentMode: mode })}
-                className={`w-full text-left px-4 py-4 rounded-xl border transition ${
-                  form.currentMode === mode
-                    ? 'bg-blue-50 border-blue-400'
-                    : 'bg-white border-gray-200 hover:border-blue-200'
+  if (results.length === 0) return null
+
+  return (
+    <div className="flex justify-start">
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 max-w-[88%] w-full">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-lg">🔍</span>
+            <span className="text-sm font-semibold text-amber-800">
+              搜索到的备考资料 ({results.length} 条)
+            </span>
+          </div>
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="text-xs text-amber-500 hover:text-amber-700 transition"
+          >
+            {collapsed ? '展开' : '收起'}
+          </button>
+        </div>
+        <p className="text-xs text-amber-600 mb-3">
+          以下资料将辅助计划生成。你可以点击切换按钮标记不需要的资料，生成计划时会自动排除。
+        </p>
+        {!collapsed && (
+          <div className="space-y-2 max-h-64 overflow-y-auto">
+            {results.map((r, i) => (
+              <div
+                key={i}
+                className={`flex items-start gap-2 p-2 rounded-lg text-xs transition ${
+                  r.relevant
+                    ? 'bg-white border border-amber-100'
+                    : 'bg-gray-100 border border-gray-200 opacity-50'
                 }`}
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-gray-800">{SUPERVISION_MODE_LABELS[mode]}</span>
-                  {form.currentMode === mode && (
-                    <span className="text-blue-500 text-lg">✓</span>
-                  )}
+                <button
+                  onClick={() => onToggle(i)}
+                  className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center mt-0.5 transition ${
+                    r.relevant
+                      ? 'border-green-400 bg-green-400 text-white'
+                      : 'border-gray-300 bg-white text-gray-300'
+                  }`}
+                  title={r.relevant ? '点击排除' : '点击恢复'}
+                >
+                  {r.relevant ? '✓' : '✕'}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`font-medium hover:underline ${
+                      r.relevant ? 'text-blue-600' : 'text-gray-400'
+                    }`}
+                  >
+                    {r.title || '无标题'}
+                  </a>
+                  <p className={`mt-0.5 line-clamp-2 ${r.relevant ? 'text-gray-600' : 'text-gray-400'}`}>
+                    {r.snippet}
+                  </p>
                 </div>
-                <p className="text-xs text-gray-400 mt-1">{SUPERVISION_MODE_DESC[mode]}</p>
-              </button>
+              </div>
             ))}
           </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
-              {error}
+/** Confirmation card with profile summary and generate button */
+function ConfirmCard({
+  profile,
+  onConfirm,
+  loading,
+}: {
+  profile: AgentState['profile']
+  onConfirm: () => void
+  loading: boolean
+}) {
+  const examDate = profile.exam_date
+  const daysUntilExam = examDate
+    ? dayjs(examDate).diff(dayjs(), 'day')
+    : null
+
+  return (
+    <div className="flex justify-start">
+      <div className="bg-green-50 border border-green-300 rounded-2xl p-4 max-w-[88%] w-full">
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xl">✅</span>
+          <span className="text-sm font-semibold text-green-800">信息确认</span>
+        </div>
+
+        <div className="bg-white border border-green-100 rounded-xl p-3 mb-3 space-y-2 text-xs">
+          <div className="flex justify-between">
+            <span className="text-gray-500">考试名称</span>
+            <span className="text-gray-800 font-medium">
+              {profile.exam_name}{profile.exam_type ? `（${profile.exam_type}）` : ''}
+            </span>
+          </div>
+          {profile.exam_date && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">考试日期</span>
+              <span className="text-gray-800 font-medium">
+                {profile.exam_date}
+                {daysUntilExam != null && (
+                  <span className="text-green-600 ml-1">（距考试还有 {daysUntilExam} 天）</span>
+                )}
+              </span>
             </div>
           )}
-
-          <div className="flex gap-3">
-            <button
-              onClick={() => setStep(2)}
-              className="flex-1 border border-gray-200 text-gray-600 py-3 rounded-xl font-medium hover:bg-gray-50 transition"
-            >
-              上一步
-            </button>
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="flex-1 bg-blue-500 disabled:bg-blue-300 text-white py-3 rounded-xl font-medium hover:bg-blue-600 transition"
-            >
-              {loading ? '生成计划中...' : '🚀 生成计划'}
-            </button>
-          </div>
-          {loading && (
-            <p className="text-center text-sm text-gray-400">AI 正在为你定制学习计划，请稍等...</p>
+          {profile.daily_hours != null && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">每日学习时间</span>
+              <span className="text-gray-800 font-medium">{profile.daily_hours} 小时</span>
+            </div>
           )}
+          {profile.foundation_level != null && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">基础水平</span>
+              <span className="text-gray-800 font-medium">
+                {['零基础', '有一定基础', '基础较好'][profile.foundation_level]}
+              </span>
+            </div>
+          )}
+          {profile.weak_subjects.length > 0 && (
+            <div className="flex justify-between">
+              <span className="text-gray-500">薄弱科目</span>
+              <span className="text-gray-800 font-medium">{profile.weak_subjects.join('、')}</span>
+            </div>
+          )}
+          <div className="flex justify-between">
+            <span className="text-gray-500">每周休息</span>
+            <span className="text-gray-800 font-medium">{profile.rest_days_per_week} 天</span>
+          </div>
         </div>
-      )}
 
-      {step < 3 && error && (
-        <div className="mt-3 bg-red-50 border border-red-200 text-red-600 text-sm px-4 py-3 rounded-xl">
-          {error}
-        </div>
-      )}
+        <button
+          onClick={onConfirm}
+          disabled={loading}
+          className="w-full bg-green-500 disabled:bg-green-300 text-white py-2.5 rounded-xl text-sm font-medium hover:bg-green-600 transition active:scale-[0.98] flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <span className="inline-flex gap-1">
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce" />
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:0.15s]" />
+                <span className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:0.3s]" />
+              </span>
+              <span>正在生成专属备考计划...</span>
+            </>
+          ) : (
+            '确认无误，生成备考计划 →'
+          )}
+        </button>
+        <p className="text-xs text-gray-400 mt-2 text-center">
+          如需修改，请在下方输入框中说明需要调整的内容
+        </p>
+      </div>
     </div>
   )
 }
