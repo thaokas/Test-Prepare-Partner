@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import SplashScreen from '@/components/SplashScreen'
 import Layout from '@/components/Layout'
 import ProtectedRoute from '@/components/ProtectedRoute'
 import Login from '@/pages/Login'
@@ -17,6 +18,7 @@ import Report from '@/pages/Report'
 export default function App() {
   return (
     <BrowserRouter>
+      <SplashScreen />
       <Routes>
         {/* Public routes */}
         <Route path="/login" element={<Login />} />

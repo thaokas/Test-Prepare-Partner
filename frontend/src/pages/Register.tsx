@@ -42,7 +42,7 @@ export default function Register() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8">
         <div className="text-center mb-8">
-          <img src="/logo.jpg" alt="小搭" className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover" />
+          <img src="/logo.png" alt="小搭" className="w-16 h-16 mx-auto mb-2 rounded-xl object-cover" />
           <h1 className="text-2xl font-bold text-gray-800">创建账号</h1>
           <p className="text-gray-500 text-sm mt-1">开始你的备考之旅</p>
         </div>

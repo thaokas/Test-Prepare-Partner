@@ -1,5 +1,5 @@
 import dayjs from 'dayjs'
-import type { AgentStage, AgentState, AgentTurnResult, AgentUIAction, LlmJsonOutput, GeneratedTask, SearchResultItem } from './types'
+import type { AgentStage, AgentState, AgentTurnResult, AgentUIAction, LlmJsonOutput, GeneratedTask, SearchResultItem, PlanStructure } from './types'
 import {
   EXTRACT_INTENT_PROMPT,
   ASK_MISSING_PROMPT,
@@ -261,6 +261,169 @@ async function handleConfirm(
   }
 }
 
+function buildDefaultPlanStructure(profile: ProfileSummary): PlanStructure {
+  const subjects = profile.weak_subjects.length > 0
+    ? [...profile.weak_subjects]
+    : ['科目一', '科目二', '科目三']
+  const allSubjects = subjects.includes('综合') ? subjects : [...subjects, '综合复习']
+  const foundationLevel = profile.foundation_level ?? 0
+  const phasePercents = [
+    [50, 30, 20],
+    [35, 40, 25],
+    [25, 45, 30],
+  ][foundationLevel] ?? [35, 40, 25]
+
+  return {
+    phases: [
+      {
+        phase: 1,
+        name: '基础阶段',
+        durationPercent: phasePercents[0],
+        description: '系统学习各科核心知识，建立完整知识框架',
+        subjects,
+        taskTemplates: [
+          { taskContent: '学习{subject}：{topic}，理解核心概念与基本原理', estimatedMinutes: 90, taskType: 1 },
+          { taskContent: '完成{subject}基础练习题，巩固当天所学内容', estimatedMinutes: 60, taskType: 3 },
+          { taskContent: '整理{subject}笔记，回顾重点与难点', estimatedMinutes: 30, taskType: 2 },
+        ],
+      },
+      {
+        phase: 2,
+        name: '强化阶段',
+        durationPercent: phasePercents[1],
+        description: '针对薄弱科目专项突破，大量刷题提高解题能力',
+        subjects: [...subjects].reverse(),
+        taskTemplates: [
+          { taskContent: '深入学习{subject}：{topic}，掌握高频考点与解题技巧', estimatedMinutes: 60, taskType: 1 },
+          { taskContent: '刷{subject}真题与模拟题，限时训练提高解题速度', estimatedMinutes: 90, taskType: 3 },
+          { taskContent: '分析错题，总结{subject}解题思路与易错点', estimatedMinutes: 30, taskType: 2 },
+        ],
+      },
+      {
+        phase: 3,
+        name: '冲刺阶段',
+        durationPercent: phasePercents[2],
+        description: '全真模拟考试，查漏补缺，调整应试状态',
+        subjects: allSubjects,
+        taskTemplates: [
+          { taskContent: '完成一套全真模拟题，严格按考试时间作答', estimatedMinutes: 120, taskType: 4 },
+          { taskContent: '批改模拟题并针对性复习{subject}错题知识点', estimatedMinutes: 60, taskType: 2 },
+        ],
+      },
+    ],
+    subjectTopics: Object.fromEntries(subjects.map((s) => [s, [`${s}核心知识点`]])),
+  }
+}
+
+function expandPlanStructure(
+  planStructure: PlanStructure,
+  profile: ProfileSummary,
+  todayDate: string,
+): GeneratedTask[] {
+  const tasks: GeneratedTask[] = []
+  const examDate = dayjs(profile.exam_date!)
+  const dailyHours = profile.daily_hours || 2
+  const targetDailyMinutes = dailyHours * 60
+  const restDaysPerWeek = profile.rest_days_per_week ?? 1
+
+  // Rest days: Sunday(0) first, then Saturday(6), Friday(5)...
+  const restDays = new Set<number>()
+  restDays.add(0) // Sunday always rest
+  if (restDaysPerWeek >= 2) restDays.add(6) // Saturday
+  if (restDaysPerWeek >= 3) restDays.add(5) // Friday
+
+  // Collect all learning days (excluding rest days and exam day itself)
+  const learningDays: dayjs.Dayjs[] = []
+  let cursor = dayjs(todayDate)
+  while (cursor.isBefore(examDate)) {
+    if (!restDays.has(cursor.day())) {
+      learningDays.push(cursor)
+    }
+    cursor = cursor.add(1, 'day')
+  }
+
+  if (learningDays.length === 0) return tasks
+
+  // Allocate days to phases — last phase gets the remainder
+  const sortedPhases = [...planStructure.phases].sort((a, b) => a.phase - b.phase)
+  let remainingDays = learningDays.length
+  const phaseDayCounts: number[] = []
+  for (let i = 0; i < sortedPhases.length; i++) {
+    if (i === sortedPhases.length - 1) {
+      phaseDayCounts.push(Math.max(1, remainingDays))
+    } else {
+      const count = Math.max(1, Math.floor(learningDays.length * sortedPhases[i].durationPercent / 100))
+      phaseDayCounts.push(count)
+      remainingDays -= count
+    }
+  }
+
+  // Track topic progress per subject so topics advance across days
+  const topicIndex: Record<string, number> = {}
+  const getNextTopic = (subject: string): string => {
+    const topics = planStructure.subjectTopics[subject]
+    if (!topics || topics.length === 0) return `${subject}重点内容`
+    const idx = topicIndex[subject] || 0
+    topicIndex[subject] = idx + 1
+    return topics[idx % topics.length]
+  }
+
+  let dayOffset = 0
+  for (let pi = 0; pi < sortedPhases.length; pi++) {
+    const phase = sortedPhases[pi]
+    const phaseDays = phaseDayCounts[pi]
+    const subjects = phase.subjects.length > 0 ? phase.subjects : ['综合']
+    const templates = phase.taskTemplates.length > 0
+      ? phase.taskTemplates
+      : [{ taskContent: '学习{subject}：{topic}', estimatedMinutes: targetDailyMinutes, taskType: 1 }]
+
+    const templateTotalMin = templates.reduce((sum, t) => sum + t.estimatedMinutes, 0)
+    const scale = templateTotalMin > 0 ? targetDailyMinutes / templateTotalMin : 1
+
+    for (let d = 0; d < phaseDays; d++) {
+      const date = learningDays[dayOffset + d]
+      const subject = subjects[d % subjects.length]
+      const topic = getNextTopic(subject)
+
+      for (const template of templates) {
+        const mins = Math.round(template.estimatedMinutes * scale)
+        tasks.push({
+          taskDate: date.format('YYYY-MM-DD'),
+          subject,
+          taskContent: template.taskContent
+            .replace(/\{subject\}/g, subject)
+            .replace(/\{topic\}/g, topic),
+          estimatedMinutes: Math.max(15, Math.min(180, mins)),
+          taskType: template.taskType,
+          phase: phase.phase,
+        })
+      }
+    }
+    dayOffset += phaseDays
+  }
+
+  // Replace the last learning day's tasks with a light pre-exam review
+  if (tasks.length > 0) {
+    const lastDate = tasks[tasks.length - 1].taskDate
+    // Remove all tasks for the last date
+    for (let i = tasks.length - 1; i >= 0; i--) {
+      if (tasks[i].taskDate === lastDate) {
+        tasks.splice(i, 1)
+      }
+    }
+    tasks.push({
+      taskDate: lastDate,
+      subject: '考前准备',
+      taskContent: '整理考试用品，回顾重点公式和知识点，保持良好心态，早睡早起',
+      estimatedMinutes: targetDailyMinutes,
+      taskType: 2,
+      phase: 3,
+    })
+  }
+
+  return tasks
+}
+
 async function handleGenerate(
   state: AgentState,
   llmChat: LlmChatFn,
@@ -270,26 +433,40 @@ async function handleGenerate(
   const weakSubjects = state.profile.weak_subjects.length > 0
     ? state.profile.weak_subjects.join('、')
     : '无特别薄弱科目'
+  const foundationLevel = state.profile.foundation_level ?? 1
 
   const prompt = GENERATE_PLAN_PROMPT
     .replace('{profile_json}', JSON.stringify(state.profile, null, 2))
     .replace('{search_results_text}', searchText)
     .replace('{today_date}', todayDate)
-    .replace('{rest_days_per_week}', String(state.profile.rest_days_per_week))
+    .replace('{rest_days_per_week}', String(state.profile.rest_days_per_week ?? 1))
     .replace('{daily_hours}', String(state.profile.daily_hours || 2))
     .replace('{weak_subjects}', weakSubjects)
+    .replace('{foundation_level}', String(foundationLevel))
 
   const llmResult = await llmChat([], prompt)
   const parsed = parseLlmJson(llmResult)
 
-  const tasks: GeneratedTask[] = (parsed.plan_tasks || []).map((t) => ({
-    taskDate: t.taskDate,
-    subject: t.subject || '',
-    taskContent: t.taskContent || '',
-    estimatedMinutes: t.estimatedMinutes || 60,
-    taskType: t.taskType || 1,
-    phase: t.phase || 1,
-  }))
+  let tasks: GeneratedTask[]
+
+  if (parsed.plan_structure && parsed.plan_structure.phases?.length > 0) {
+    // New structured plan path
+    tasks = expandPlanStructure(parsed.plan_structure, state.profile, todayDate)
+  } else if (parsed.plan_tasks && parsed.plan_tasks.length > 0) {
+    // Backward compat: old-style direct task list from LLM
+    tasks = parsed.plan_tasks.map((t) => ({
+      taskDate: t.taskDate,
+      subject: t.subject || '',
+      taskContent: t.taskContent || '',
+      estimatedMinutes: t.estimatedMinutes || 60,
+      taskType: t.taskType || 1,
+      phase: t.phase || 1,
+    }))
+  } else {
+    // Fallback: build a default plan structure from profile info
+    const defaultStructure = buildDefaultPlanStructure(state.profile)
+    tasks = expandPlanStructure(defaultStructure, state.profile, todayDate)
+  }
 
   state = {
     ...state,
@@ -298,7 +475,7 @@ async function handleGenerate(
   }
 
   return {
-    assistantMessage: parsed.message || '🎉 你的专属备考计划已经生成完毕！',
+    assistantMessage: parsed.message || '你的专属备考计划已经生成完毕！',
     updatedState: state,
     didSearch: false,
     uiAction: 'show_plan_card',

@@ -55,6 +55,27 @@ export interface LlmJsonOutput {
   }>
   confirmation?: boolean
   plan_tasks?: GeneratedTask[]
+  plan_structure?: PlanStructure
+}
+
+export interface PlanStructure {
+  phases: PlanPhase[]
+  subjectTopics: Record<string, string[]>
+}
+
+export interface PlanPhase {
+  phase: number
+  name: string
+  durationPercent: number
+  description: string
+  subjects: string[]
+  taskTemplates: TaskTemplate[]
+}
+
+export interface TaskTemplate {
+  taskContent: string
+  estimatedMinutes: number
+  taskType: number
 }
 
 export function createInitialState(): AgentState {
@@ -71,4 +92,4 @@ export function createInitialState(): AgentState {
 }
 
 export const GREETING_MESSAGE =
-  '你好！我是你的小搭 🤖\n\n你可以直接告诉我你想备考什么考试，我会帮你搜索相关信息，了解你的情况，然后为你量身定制一份专属备考计划。\n\n比如你可以说：\n• "我想备考2027年考研数学一"\n• "帮我制定雅思A类的备考计划"\n• "我在准备CPA会计科目的考试"'
+  '你好！我是你的小搭\n\n你可以直接告诉我你想备考什么考试，我会帮你搜索相关信息，了解你的情况，然后为你量身定制一份专属备考计划。\n\n比如你可以说：\n• "我想备考2027年考研数学一"\n• "帮我制定雅思A类的备考计划"\n• "我在准备CPA会计科目的考试"'

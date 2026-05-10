@@ -23,4 +23,5 @@ def get_chat_model(
         base_url=base_url or settings.llm_base_url or None,
         model=model or settings.llm_model,
         temperature=temperature if temperature is not None else settings.llm_temperature,
+        max_tokens=settings.llm_max_tokens,
     )

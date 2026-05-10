@@ -30,7 +30,7 @@ export default function Chat() {
     {
       id: msgIdCounter++,
       role: 'assistant',
-      content: '你好！我是小搭 🤖\n你可以直接问我备考相关问题，也可以让我帮你定制专属备考计划。告诉我你想备考什么考试吧~',
+      content: '你好！我是小搭\n你可以直接问我备考相关问题，也可以让我帮你定制专属备考计划。告诉我你想备考什么考试吧~',
       time: dayjs().format('HH:mm'),
     },
   ])

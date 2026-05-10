@@ -64,27 +64,30 @@ export default function Home() {
   return (
     <div className="space-y-4 pb-4">
       {/* Header greeting */}
-      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl p-5">
-        <p className="text-blue-100 text-sm">你好，{user?.nickname ?? '同学'} 👋</p>
-        <h2 className="text-xl font-bold mt-1">
-          {dayjs().format('M月D日')} {getGreeting()}
-        </h2>
-        <div className="flex items-center gap-4 mt-3">
-          <div className="text-center">
-            <p className="text-2xl font-bold">{streak}</p>
-            <p className="text-blue-100 text-xs">连续打卡天数</p>
-          </div>
-          <div className="w-px h-10 bg-blue-300" />
-          <div className="text-center">
-            <p className="text-2xl font-bold">{user?.totalCheckins ?? 0}</p>
-            <p className="text-blue-100 text-xs">累计打卡</p>
-          </div>
-          <div className="w-px h-10 bg-blue-300" />
-          <div className="text-center">
-            <p className="text-2xl font-bold">{user?.maxStreak ?? 0}</p>
-            <p className="text-blue-100 text-xs">最长连续</p>
+      <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-2xl p-5 flex items-center justify-between">
+        <div>
+          <p className="text-blue-100 text-sm">你好，{user?.nickname ?? '同学'} 👋</p>
+          <h2 className="text-xl font-bold mt-1">
+            {dayjs().format('M月D日')} {getGreeting()}
+          </h2>
+          <div className="flex items-center gap-4 mt-3">
+            <div className="text-center">
+              <p className="text-2xl font-bold">{streak}</p>
+              <p className="text-blue-100 text-xs">连续打卡天数</p>
+            </div>
+            <div className="w-px h-10 bg-blue-300" />
+            <div className="text-center">
+              <p className="text-2xl font-bold">{user?.totalCheckins ?? 0}</p>
+              <p className="text-blue-100 text-xs">累计打卡</p>
+            </div>
+            <div className="w-px h-10 bg-blue-300" />
+            <div className="text-center">
+              <p className="text-2xl font-bold">{user?.maxStreak ?? 0}</p>
+              <p className="text-blue-100 text-xs">最长连续</p>
+            </div>
           </div>
         </div>
+        <img src="/logo.png" alt="logo" className="w-24 h-24 rounded-xl flex-shrink-0 ml-4" />
       </div>
 
       {/* Active plan */}
@@ -195,7 +198,7 @@ export default function Home() {
           <p className="text-xs text-gray-400">{plans.length} 个</p>
         </Link>
         <Link to="/chat" className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-1 hover:shadow-md transition">
-          <span className="text-2xl">🤖</span>
+          <img src="/logo.png" alt="小搭" className="w-10 h-10" />
           <p className="font-medium text-gray-800 text-sm">小搭</p>
           <p className="text-xs text-gray-400">随时提问</p>
         </Link>

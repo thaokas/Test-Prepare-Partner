@@ -90,7 +90,14 @@ export default function PlanCreate() {
         agentState,
         async (msgs, sysPrompt) => {
           const res = await agentApi.llmChat({ messages: msgs, system_prompt: sysPrompt })
-          return res.data.data.content || ''
+          const data = res.data.data
+          if (data.error) {
+            throw new Error(`LLM服务异常: ${data.error}`)
+          }
+          if (!data.content) {
+            throw new Error('LLM返回空内容，请检查Agent服务日志')
+          }
+          return data.content
         },
         async (query) => {
           const res = await agentApi.search({ query })
@@ -143,7 +150,14 @@ export default function PlanCreate() {
         agentState,
         async (msgs, sysPrompt) => {
           const res = await agentApi.llmChat({ messages: msgs, system_prompt: sysPrompt })
-          return res.data.data.content || ''
+          const data = res.data.data
+          if (data.error) {
+            throw new Error(`LLM服务异常: ${data.error}`)
+          }
+          if (!data.content) {
+            throw new Error('LLM返回空内容，请检查Agent服务日志')
+          }
+          return data.content
         },
       )
 
@@ -268,7 +282,7 @@ export default function PlanCreate() {
                 } flex flex-col gap-1`}
               >
                 {msg.role === 'assistant' && (
-                  <span className="text-xs text-gray-400 px-1">🤖 小搭</span>
+                  <span className="text-xs text-gray-400 px-1"><img src="/logo.png" alt="小搭" className="w-5 h-5 inline-block align-middle" /> 小搭</span>
                 )}
                 <div
                   className={`px-4 py-3 rounded-2xl text-sm ${

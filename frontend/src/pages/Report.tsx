@@ -147,7 +147,7 @@ export default function Report() {
       {/* ── 加载状态 ────────────────────────────────────────────────────── */}
       {loading && (
         <div className="bg-white rounded-2xl p-8 shadow-sm text-center">
-          <div className="text-4xl mb-3">🤖</div>
+          <img src="/logo.png" alt="小搭" className="w-10 h-10 mb-3 mx-auto" />
           <p className="text-gray-500 text-sm">AI 正在分析你的学习数据，生成专属报告...</p>
           <div className="mt-4 w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
             <div className="bg-blue-500 h-full rounded-full animate-pulse w-3/4" />
