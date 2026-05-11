@@ -26,20 +26,29 @@ export default function SplashScreen() {
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-white transition-opacity duration-500 ${
+      className={`fixed inset-0 z-50 transition-opacity duration-500 ${
         fadeOut ? 'opacity-0' : 'opacity-100'
       }`}
     >
-      <div className="animate-[fadeIn_0.6s_ease-out]">
-        <img
-          src="/logo.png"
-          alt="prepKeeper"
-          className="w-48 h-48 object-contain rounded-2xl shadow-lg"
-        />
+      <img
+        src="/background.jpg"
+        alt="prepKeeper"
+        className="absolute inset-0 w-full h-full object-cover"
+      />
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="animate-[fadeIn_0.6s_ease-out]">
+          <img
+            src="/logo-start.png"
+            alt="prepKeeper"
+            className="w-48 h-48 object-contain rounded-2xl shadow-lg"
+          />
+        </div>
+        <p className="mt-6 text-gray-400 text-sm tracking-wider text-center animate-[fadeIn_0.8s_ease-out]">
+          备考搭子
+          <br />
+          Study Buddy
+        </p>
       </div>
-      <p className="mt-6 text-gray-400 text-sm tracking-wider animate-[fadeIn_0.8s_ease-out]">
-        prepKeeper
-      </p>
     </div>
   )
 }
