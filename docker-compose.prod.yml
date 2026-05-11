@@ -1,0 +1,84 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: prepkeeper-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-prepkeeper}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prepkeeper}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - prepkeeper
+
+  agent:
+    build:
+      context: ./agent-service
+    container_name: prepkeeper-agent
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-prepkeeper}@postgres:5432/${POSTGRES_DB:-prepkeeper}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL: ${LLM_MODEL}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      VISION_API_KEY: ${VISION_API_KEY:-}
+      VISION_BASE_URL: ${VISION_BASE_URL:-}
+      VISION_MODEL: ${VISION_MODEL:-}
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-}
+      HOST: 0.0.0.0
+      PORT: 8000
+      DEBUG: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - prepkeeper
+
+  backend:
+    build:
+      context: ./backend
+    container_name: prepkeeper-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-prepkeeper}
+      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-prepkeeper}
+      JWT_SECRET: ${JWT_SECRET}
+      AGENT_URL: http://agent:8000
+    depends_on:
+      postgres:
+        condition: service_healthy
+      agent:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - prepkeeper
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: prepkeeper-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - prepkeeper
+
+volumes:
+  postgres_data:
+
+networks:
+  prepkeeper:
+    driver: bridge

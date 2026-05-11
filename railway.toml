@@ -1,0 +1,16 @@
+# Railway 部署配置
+# 在 Railway 中选择 "Deploy from Docker Compose" 即可自动识别
+
+[build]
+dockerfilePath = "docker-compose.prod.yml"
+
+# 或者分别部署每个服务（取消注释以下内容，注释上面的 build）：
+#
+# [services.agent]
+# build = "./agent-service"
+#
+# [services.backend]
+# build = "./backend"
+#
+# [services.frontend]
+# build = "./frontend"

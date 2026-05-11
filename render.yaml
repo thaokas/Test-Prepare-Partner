@@ -1,0 +1,87 @@
+# Render Blueprint 部署配置
+# 在 Render Dashboard → Blueprints → New Blueprint 中关联仓库即可
+
+services:
+  # PostgreSQL 数据库
+  - type: pserv
+    name: prepkeeper-db
+    env: docker
+    dockerfilePath: ./backend/docker-compose.yml
+    disk:
+      name: postgres-data
+      mountPath: /var/lib/postgresql/data
+      sizeGB: 10
+    envVars:
+      - key: POSTGRES_DB
+        value: prepkeeper
+      - key: POSTGRES_USER
+        value: postgres
+      - key: POSTGRES_PASSWORD
+        generateValue: true
+
+  # Agent 服务
+  - type: web
+    name: prepkeeper-agent
+    env: docker
+    dockerfilePath: ./agent-service/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromService:
+          name: prepkeeper-db
+          type: pserv
+          property: connectionstring
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL
+        sync: false
+      - key: LLM_MODEL
+        sync: false
+      - key: EMBEDDING_MODEL
+        value: text-embedding-3-small
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: "8000"
+      - key: DEBUG
+        value: "false"
+
+  # 后端服务
+  - type: web
+    name: prepkeeper-backend
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        fromService:
+          name: prepkeeper-db
+          type: pserv
+          property: connectionstring
+      - key: SPRING_DATASOURCE_USERNAME
+        fromService:
+          name: prepkeeper-db
+          type: pserv
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromService:
+          name: prepkeeper-db
+          type: pserv
+          property: password
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AGENT_URL
+        fromService:
+          name: prepkeeper-agent
+          type: web
+          property: hostport
+
+  # 前端服务
+  - type: web
+    name: prepkeeper-frontend
+    env: docker
+    dockerfilePath: ./frontend/Dockerfile
+    envVars:
+      - key: BACKEND_URL
+        fromService:
+          name: prepkeeper-backend
+          type: web
+          property: hostport
