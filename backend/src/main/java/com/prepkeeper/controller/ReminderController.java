@@ -19,7 +19,7 @@ import java.util.List;
 
 @Tag(name = "提醒接口", description = "提醒设置管理")
 @RestController
-@RequestMapping("/api/reminders")
+@RequestMapping("/reminders")
 @RequiredArgsConstructor
 public class ReminderController {
 

@@ -18,7 +18,7 @@ import java.util.List;
 
 @Tag(name = "打卡接口", description = "每日打卡管理")
 @RestController
-@RequestMapping("/api/checkins")
+@RequestMapping("/checkins")
 @RequiredArgsConstructor
 public class CheckinController {
 

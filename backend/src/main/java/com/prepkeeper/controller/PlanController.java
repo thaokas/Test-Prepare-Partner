@@ -21,7 +21,7 @@ import java.util.Map;
 
 @Tag(name = "计划接口", description = "备考计划管理")
 @RestController
-@RequestMapping("/api/plans")
+@RequestMapping("/plans")
 @RequiredArgsConstructor
 public class PlanController {
 

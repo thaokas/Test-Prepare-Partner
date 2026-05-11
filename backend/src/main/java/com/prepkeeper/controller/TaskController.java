@@ -15,7 +15,7 @@ import java.util.List;
 
 @Tag(name = "任务接口", description = "每日任务管理")
 @RestController
-@RequestMapping("/api/tasks")
+@RequestMapping("/tasks")
 @RequiredArgsConstructor
 public class TaskController {
 

@@ -19,7 +19,7 @@ import java.util.Map;
 
 @Tag(name = "Agent代理接口", description = "与AI Agent服务交互")
 @RestController
-@RequestMapping("/api/agent")
+@RequestMapping("/agent")
 @RequiredArgsConstructor
 public class AgentProxyController {
 
